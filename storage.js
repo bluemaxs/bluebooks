@@ -23,25 +23,33 @@ function database() {
     });
   return connection;
 }
-export async function readLibrary() {
+async function readValue(key) {
   const db = await database();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("library", "readonly");
-    const request = transaction.objectStore("library").get("state");
+    const request = transaction.objectStore("library").get(key);
     transaction.oncomplete = () => resolve(request.result);
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () =>
       reject(transaction.error || new Error("读取被中断"));
   });
 }
-export async function writeLibrary(state) {
+async function writeValue(key, state) {
   const db = await database();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("library", "readwrite");
-    transaction.objectStore("library").put(state, "state");
+    transaction.objectStore("library").put(state, key);
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () =>
       reject(transaction.error || new Error("保存被中断"));
   });
 }
+export const readLibrary = () => readValue("state");
+export const writeLibrary = state => writeValue("state",state);
+function datasetKey(name) {
+  if(!['price-plan','wishlist'].includes(name))throw new Error('未知数据文件。');
+  return 'dataset:'+name;
+}
+export const readDataset = name => readValue(datasetKey(name));
+export const writeDataset = (name,data) => writeValue(datasetKey(name),data);

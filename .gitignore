@@ -10,3 +10,7 @@ library-*.json
 *.pdf
 *.mobi
 *.azw3
+
+# Independent private reading lists
+price-plan.json
+wishlist.json

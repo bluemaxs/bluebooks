@@ -4,6 +4,21 @@ export const STATUSES = { unread: "未读", reading: "在读", read: "已读" };
 export const uid = () =>
   globalThis.crypto?.randomUUID?.() ||
   `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+export function readingCount(book) {
+  const n = Number(book.readCount);
+  return Math.max(
+    book.status === 'read' ? 1 : 0,
+    Number.isFinite(n) ? Math.min(100000, Math.max(0, Math.floor(n))) : 0,
+  );
+}
+export function recordRead(book, date = new Date()) {
+  return {
+    status: 'read',
+    readCount: Math.min(100000, readingCount(book) + 1),
+    readYears: [...(book.readYears || []), date.getFullYear()].slice(-100000),
+    finishedAt: date.toISOString(),
+  };
+}
 export const escapeHTML = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -95,6 +110,8 @@ export function groupBooks(books) {
       status: readingRecord.status,
       finishedAt: readingRecord.finishedAt,
       rating: ordered.find((x) => x.rating > 0)?.rating || 0,
+      readCount: entries.reduce((n, x) => Math.max(n, readingCount(x)), 0),
+      readYears: ordered.find(x=>Array.isArray(x.readYears)&&x.readYears.length)?.readYears || [],
       key,
       ids: entries.map((x) => x.id),
       sources: [...sourceMap.values()],
@@ -146,6 +163,7 @@ export function parseCSV(text) {
     笔记: "notes",
     评分: "rating",
     收藏: "favorite",
+    阅读次数: "readCount",
     ISBN: "isbn",
   };
   const headers = rows
@@ -172,6 +190,7 @@ export function prepareImport(input) {
       Object.keys(STATUSES).find(
         (k) => k === r.status || STATUSES[k] === r.status,
       ) || "unread";
+    const readYears=Array.isArray(r.readYears)?r.readYears.map(Number).filter(y=>Number.isInteger(y)&&y>=1900&&y<=9999).slice(0,100000):[];
     const sources = (Array.isArray(r.sources) ? r.sources : [r])
       .filter((x) => x && typeof x === "object")
       .map((s) => ({
@@ -193,6 +212,8 @@ export function prepareImport(input) {
         isbn: String(r.isbn || ""),
         category: String(r.category || "未分类").slice(0, 60),
         status,
+        readCount: Math.max(readingCount({...r,status}),readYears.length),
+        readYears,
         favorite:
           r.favorite === true || r.favorite === "true" || r.favorite === "是",
         notes: String(r.notes || "").slice(0, 50000),
