@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#24685c" />
+    <meta
+      name="description"
+      content="书屿，把散落的好书，收进同一座岛屿。跨网盘私人电子书目录、重复整理与阅读记录。"
+    />
+    <title>书屿 · 我的电子书库</title>
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a href="#library" class="brand"
+        ><span class="brand-mark">书</span
+        ><span>书屿<small>BLUEBOOKS</small></span></a
+      >
+      <div class="workspace">
+        <span class="avatar">我的</span
+        ><span>我的私人书库<small>让每一本书，都有归处</small></span
+        ><span class="workspace-dot"></span>
+      </div>
+      <div class="nav-label">我的书架</div>
+      <nav id="navigation" aria-label="主导航"></nav>
+      <div class="nav-label source-label">
+        网盘来源 <span id="drive-count"></span>
+      </div>
+      <nav id="drive-navigation" aria-label="网盘来源"></nav>
+      <div class="sidebar-bottom">
+        <div class="shelf-drawing">⌜<span>▥ ▤ ▥ ▥</span>⌝</div>
+        <p>藏书，也收藏自己。</p>
+        <small>每一次阅读，都是一次抵达。</small
+        ><button id="backup-button" class="backup-button"></button>
+        <div class="local-indicator"><i></i> 本机缓存 · 用 JSON 跨设备</div>
+      </div>
+    </aside>
+    <div class="shell">
+      <header class="topbar">
+        <div class="breadcrumb">
+          我的空间 <span>/</span> <strong id="breadcrumb">全部书籍</strong>
+        </div>
+        <div class="header-actions">
+          <button
+            class="button small"
+            data-action="open-json"
+            id="open-json-button"
+          >
+            打开 JSON 书库</button
+          ><button
+            class="button primary small"
+            data-action="export"
+            id="save-json-button"
+          >
+            保存 JSON
+          </button>
+          <button id="search-shortcut" class="quiet-button" title="搜索书籍">
+            搜索 <kbd>⌘ K</kbd></button
+          ><span class="header-divider"></span
+          ><span class="user-avatar">阅</span>
+        </div>
+      </header>
+      <main id="main"></main>
+      <footer>
+        <span>书屿 <i>·</i> 让阅读自成一片天地</span
+        ><span>YOUR BOOKS, ONE HOME.</span>
+      </footer>
+    </div>
+    <dialog id="book-dialog" class="book-dialog"></dialog>
+    <dialog id="form-dialog" class="form-dialog"></dialog>
+    <input
+      type="file"
+      id="open-library-file"
+      accept=".json,application/json"
+      hidden
+    />
+    <div id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

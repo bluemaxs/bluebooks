@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+*.zip
+.openai/
+# Private library files and ebook files never belong in the public source repository.
+library.json
+library-*.json
+*backup*.json
+*.epub
+*.pdf
+*.mobi
+*.azw3

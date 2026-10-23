@@ -1,0 +1,72 @@
+{
+  "app": "bluebooks",
+  "version": 1,
+  "books": [
+    {
+      "id": "demo-0",
+      "title": "山茶文具店",
+      "author": "小川糸",
+      "category": "文学",
+      "status": "reading",
+      "favorite": true,
+      "rating": 0,
+      "notes": "",
+      "addedAt": "2026-10-23T00:00:00.000Z",
+      "updatedAt": "2026-10-23T00:00:00.000Z",
+      "finishedAt": null,
+      "sources": [
+        {
+          "id": "source-0",
+          "drive": "百度网盘",
+          "format": "EPUB",
+          "url": "",
+          "path": "/我的电子书/文学/山茶文具店.epub"
+        }
+      ]
+    },
+    {
+      "id": "demo-1",
+      "title": "人类简史",
+      "author": "尤瓦尔·赫拉利",
+      "category": "历史",
+      "status": "reading",
+      "favorite": false,
+      "rating": 0,
+      "notes": "",
+      "addedAt": "2026-10-22T00:00:00.000Z",
+      "updatedAt": "2026-10-22T00:00:00.000Z",
+      "finishedAt": null,
+      "sources": [
+        {
+          "id": "source-1",
+          "drive": "百度网盘",
+          "format": "PDF",
+          "url": "",
+          "path": "/我的电子书/历史/人类简史.pdf"
+        }
+      ]
+    },
+    {
+      "id": "demo-2",
+      "title": "也许你该找个人聊聊",
+      "author": "洛莉·戈特利布",
+      "category": "心理",
+      "status": "read",
+      "favorite": false,
+      "rating": 5,
+      "notes": "",
+      "addedAt": "2026-10-21T00:00:00.000Z",
+      "updatedAt": "2026-10-21T00:00:00.000Z",
+      "finishedAt": "2026-10-18T00:00:00.000Z",
+      "sources": [
+        {
+          "id": "source-2",
+          "drive": "百度网盘",
+          "format": "EPUB",
+          "url": "",
+          "path": "/我的电子书/心理/也许你该找个人聊聊.epub"
+        }
+      ]
+    }
+  ]
+}
