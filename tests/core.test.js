@@ -10,8 +10,8 @@ import {
   escapeHTML,
   validISBN,
   restoreLibrary,
-} from "../dist/core.js";
-import { demoBooks } from "../dist/seed.js";
+} from "../core.js";
+import { demoBooks } from "../seed.js";
 
 test("opening JSON preserves book identifiers and all reading records", () => {
   const original = demoBooks();

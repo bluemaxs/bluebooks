@@ -34,7 +34,7 @@
 npm run dev
 ```
 
-打开终端显示的本地地址 `http://localhost:4173`。也可以在 macOS 双击 `启动书库.command`。不要直接双击 `dist/index.html`，浏览器需要 HTTP 来加载 JavaScript 模块。
+打开终端显示的本地地址 `http://localhost:4173`。也可以在 macOS 双击 `启动书库.command`。不要直接双击 `index.html`，浏览器需要 HTTP 来加载 JavaScript 模块。
 
 ```sh
 npm run check
@@ -48,12 +48,14 @@ npm test
 1. GitHub Desktop → **File → Add Local Repository**，选择这个 `bluebooks` 文件夹。
 2. 点击 **Publish repository**，仓库名填写 **bluebooks**。
 3. 取消勾选 **Keep this code private**，发布为公开仓库。
-4. 网页打开仓库 → **Settings → Pages → Build and deployment → Source → GitHub Actions**。
-5. 在 **Actions** 中打开 **Deploy to GitHub Pages**，点击 **Run workflow**。首次 push 可能发生在 Pages 启用之前，因此启用后手动运行一次即可。
+4. 在 GitHub Desktop 点击 **Push origin**，把最新的根目录布局上传到 GitHub。
+5. 网页打开仓库 → **Settings → Pages → Build and deployment → Source → Deploy from a branch**。
+6. Branch 选择 **main**，文件夹选择 **/ (root)**，点击 **Save**。
+7. 等 GitHub 自动发布完成，刷新 Pages 设置页，点击 **Visit site**。
 
-以后向 `main` 分支 **Push origin**，工作流会自动执行语法检查和测试，再把 `dist/` 发布到 GitHub Pages。部署成功后，在仓库 Pages 设置页查看实际网址。
+以后向 `main` 分支 **Push origin**，GitHub Pages 会自动更新网站，无需手动运行发布工作流。项目另外保留了代码检查工作流，它只运行语法检查与测试，不负责发布。
 
-流程采用 [GitHub Pages 官方自定义工作流](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。代码使用相对资源路径，适配 `/bluebooks/` 项目站点。
+流程采用 [GitHub Pages 官方分支发布方式](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)。网页文件直接位于仓库根目录，`.nojekyll` 用于直接发布静态资源。代码使用相对资源路径，适配 `/bluebooks/` 项目站点。
 
 ## 导入大量书籍
 
@@ -82,14 +84,16 @@ npm test
 ## 文件结构
 
 ```text
-dist/                  可直接部署的 HTML / CSS / JavaScript 源码
-  app.js               页面和交互
-  core.js              导入、验证、分组、归并、JSON 恢复
-  storage.js           本机 IndexedDB 草稿缓存
-  seed.js              明确标注的示例书目
+index.html             网站首页（仓库根目录）
+style.css              样式与手机布局
+app.js                 页面和交互
+core.js                导入、验证、分组、归并、JSON 恢复
+storage.js             本机 IndexedDB 草稿缓存
+seed.js                明确标注的示例书目
+.nojekyll              禁用 Jekyll，直接发布静态资源
 tests/                 Node.js 原生测试，无需安装测试框架
 examples/              安全的 JSON 与 CSV 示例
-.github/workflows/     GitHub Pages 发布配置
+.github/workflows/     代码检查配置（不负责发布）
 ```
 
 公开仓库只放应用源码和安全示例。真实 `library.json`、备份及电子书扩展名已经加入 `.gitignore`；请不要把含私人分享链接的书库文件强制提交到公开仓库。

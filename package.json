@@ -5,8 +5,8 @@
   "type": "module",
   "description": "书屿 — 跨网盘的私人电子书库",
   "scripts": {
-    "dev": "python3 -m http.server 4173 --bind 127.0.0.1 --directory dist",
+    "dev": "python3 -m http.server 4173 --bind 127.0.0.1",
     "test": "node --test tests/*.test.js",
-    "check": "node --check dist/app.js && node --check dist/core.js && node --check dist/storage.js && node --check dist/seed.js"
+    "check": "node --check app.js && node --check core.js && node --check storage.js && node --check seed.js"
   }
 }
