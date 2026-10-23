@@ -19,6 +19,10 @@ export function recordRead(book, date = new Date()) {
     finishedAt: date.toISOString(),
   };
 }
+export function readingCountForYear(book, year) {
+  if (book.readYears?.length) return book.readYears.filter(y => y === Number(year)).length;
+  return book.finishedAt && new Date(book.finishedAt).getFullYear() === Number(year) ? 1 : 0;
+}
 export const escapeHTML = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -72,7 +76,10 @@ export function validISBN(value) {
   }
   return "";
 }
+// A reading unit can be a volume even when it shares an omnibus ISBN or file.
+const validWorkId = value => typeof value === "string" && /^[a-zA-Z0-9-]{1,100}$/.test(value);
 export function bookKey(book) {
+  if (validWorkId(book.workId)) return `work:${book.workId}`;
   const isbn = validISBN(book.isbn);
   if (isbn) return `isbn:${isbn}`;
   const author = normalizeTitle(book.author);
@@ -111,7 +118,7 @@ export function groupBooks(books) {
       finishedAt: readingRecord.finishedAt,
       rating: ordered.find((x) => x.rating > 0)?.rating || 0,
       readCount: entries.reduce((n, x) => Math.max(n, readingCount(x)), 0),
-      readYears: ordered.find(x=>Array.isArray(x.readYears)&&x.readYears.length)?.readYears || [],
+      readYears: ordered.reduce((years, x) => (x.readYears?.length || 0) > years.length ? x.readYears : years, []),
       key,
       ids: entries.map((x) => x.id),
       sources: [...sourceMap.values()],
@@ -205,6 +212,7 @@ export function prepareImport(input) {
     return [
       {
         id: uid(),
+        workId: validWorkId(r.workId) ? r.workId : "",
         title: String(r.title).trim().slice(0, 300),
         author: String(r.author || "未知作者")
           .trim()
@@ -277,12 +285,20 @@ export function appendBooks(existing, incoming) {
     }
     return JSON.stringify([key, s.drive, s.format, s.url, s.path]);
   };
-  existing.forEach((b) =>
-    b.sources.forEach((s) => signatures.add(signature(b, s))),
-  );
+  const noSourceSignature = b => JSON.stringify([bookKey(b), "no-source"]);
+  existing.forEach(b => {
+    if (b.sources.length) b.sources.forEach(s => signatures.add(signature(b, s)));
+    signatures.add(noSourceSignature(b));
+  });
   let duplicates = 0;
   const fresh = [];
   for (const b of incoming) {
+    if (!b.sources.length) {
+      const key = noSourceSignature(b);
+      if (signatures.has(key)) duplicates++;
+      else { signatures.add(key); fresh.push(b); }
+      continue;
+    }
     const sources = b.sources.filter((s) => !signatures.has(signature(b, s)));
     if (!sources.length) {
       duplicates++;

@@ -1888,3 +1888,10 @@ dialog::backdrop {
   .shell, .project-section { min-width:0; }
   .project-table-scroll { max-width:100%; }
 }
+.reading-years { display:flex; flex-wrap:wrap; gap:10px; margin:-10px 0 25px; color:#728275; font-size:11px; }
+.reading-years span { background:#edf3ee; border-radius:5px; padding:7px 11px; }
+.reading-years strong { color:var(--green); font-weight:500; margin-right:6px; }
+.rating-label { color:var(--green); font-size:12px; font-weight:500; margin-left:10px; }
+.independent-field > span { display:flex; align-items:center; gap:8px; }
+.independent-field input[type="checkbox"] { width:15px; height:15px; padding:0; accent-color:var(--green); }
+.source-empty { color:#8b9690; font-size:12px; line-height:1.8; margin:15px 0 24px; }

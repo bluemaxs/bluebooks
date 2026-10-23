@@ -12,6 +12,8 @@ import {
   restoreLibrary,
   readingCount,
   recordRead,
+  readingCountForYear,
+  uid,
 } from "./core.js";
 import { ProjectController } from "./project-ui.js";
 import { demoBooks } from "./seed.js";
@@ -159,7 +161,7 @@ function nav() {
   const all = groups();
   const items = [
     ["library", "book", all.length],
-    ["read", "read", all.filter((x) => x.status === "read").length],
+    ["read", "read", all.reduce((n, x) => n + readingCount(x), 0)],
     ["favorites", "heart", all.filter((x) => x.favorite).length],
     ["duplicates", "copy", all.filter((x) => x.ids.length > 1).length],
     ["drives", "cloud", null],
@@ -203,10 +205,10 @@ function stats() {
       "book",
     ],
     [
-      "已读书籍",
-      all.filter((x) => x.status === "read").length,
-      "本",
-      "每一页，都算数",
+      "已读总数（含重读）",
+      all.reduce((n, x) => n + readingCount(x), 0),
+      "册次",
+      `${all.filter(x => readingCount(x) > 0).length} 本独立书目，分卷分别统计`,
       "read",
     ],
     [
@@ -225,7 +227,7 @@ function stats() {
 }
 function filtered() {
   let all = [...groups()];
-  if (page === "read") all = all.filter((x) => x.status === "read");
+  if (page === "read") all = all.filter((x) => readingCount(x) > 0);
   if (page === "favorites") all = all.filter((x) => x.favorite);
   if (tab !== "all") all = all.filter((x) => x.status === tab);
   if (drive)
@@ -282,7 +284,7 @@ function controls() {
   )
     .map(
       ([k, label]) =>
-        `<button class="tab ${tab === k ? "active" : ""}" data-tab="${k}">${label}<span>${all.filter((x) => (page !== "read" || x.status === "read") && (page !== "favorites" || x.favorite) && (!drive || x.sources.some((s) => s.drive === drive)) && (k === "all" || x.status === k)).length}</span></button>`,
+        `<button class="tab ${tab === k ? "active" : ""}" data-tab="${k}">${label}<span>${all.filter((x) => (page !== "read" || readingCount(x) > 0) && (page !== "favorites" || x.favorite) && (!drive || x.sources.some((s) => s.drive === drive)) && (k === "all" || x.status === k)).length}</span></button>`,
     )
     .join(
       "",
@@ -305,7 +307,9 @@ function renderResults() {
   currentPage = Math.min(currentPage, pages);
   const start = (currentPage - 1) * 18;
   const visible = all.slice(start, start + 18);
-  $("#result-count").textContent = `共 ${all.length} 本书籍`;
+  $("#result-count").textContent = page === "read"
+    ? `${all.length} 本独立书目 · ${all.reduce((n, b) => n + readingCount(b), 0)} 册次（含重读）`
+    : `共 ${all.length} 本书籍`;
   $("#results").innerHTML = all.length
     ? list(visible) +
       (pages > 1
@@ -334,12 +338,14 @@ function renderResults() {
         );
 }
 function readSummary() {
-  const all = groups().filter((x) => x.status === "read");
+  const all = groups().filter((x) => readingCount(x) > 0);
   const year = new Date().getFullYear();
-  const yearCount = groups().reduce((n, x) => n + (x.readYears?.length ? x.readYears.filter(y => y === year).length : (x.finishedAt && new Date(x.finishedAt).getFullYear() === year ? 1 : 0)), 0);
+  const yearCount = groups().reduce((n, x) => n + readingCountForYear(x, year), 0);
   const totalCount = groups().reduce((n, x) => n + readingCount(x), 0);
   const notes = all.filter((x) => x.notes).length;
-  return `<div class="read-summary"><div><strong>${yearCount}</strong><p>${year} 年已记录 / 次</p></div><div><strong>${totalCount}</strong><p>累计阅读 / 次</p></div><div><strong>${notes}</strong><p>留下阅读笔记 / 本</p></div><div class="read-quote">「读过的书，都藏在你的气质里。」</div></div>`;
+  const years = [...new Set(groups().flatMap(b => b.readYears?.length ? b.readYears : b.finishedAt ? [new Date(b.finishedAt).getFullYear()] : []))].sort((a,b) => b-a);
+  const annualSummary = years.length ? `<div class="reading-years" aria-label="各年阅读总数">${years.map(y => `<span><strong>${y}</strong> ${groups().reduce((n,b) => n + readingCountForYear(b,y),0)} 册次</span>`).join("")}</div>` : "";
+  return `<div class="read-summary"><div><strong>${yearCount}</strong><p>${year} 年已记录 / 次</p></div><div><strong>${totalCount}</strong><p>已读总数 / 册次（含重读）</p></div><div><strong>${notes}</strong><p>留下阅读笔记 / 本</p></div><div class="read-quote">「读过的书，都藏在你的气质里。」</div></div>${annualSummary}`;
 }
 function duplicatePage() {
   const dupes = groups().filter((x) => x.ids.length > 1);
@@ -440,14 +446,14 @@ function openBook(id) {
     )
     .join(
       "",
-    )}</div><div class="reread-control"><span class="read-count-tag">读过 ${readingCount(b)} 次</span><button class="button small" data-action="read-again">${readingCount(b) ? "再读一次 +1" : "记一次已读 +1"}</button>${b.readYears?.length ? `<small>已记录年份：${e(b.readYears.join("、"))}</small>` : ""}</div><div class="detail-label">文件来源 <small>${b.sources.length} 个文件 · 原网盘保存</small></div>${b.sources.map((s, i) => `<div class="source-row">${driveMark(s.drive)}<div class="source-copy">${e(s.drive)} <span class="format-tag">${e(s.format)}</span><div class="source-path">${e(s.path || "未填写文件路径")}</div></div>${safeURL(s.url) ? `<a class="button small" href="${e(safeURL(s.url))}" target="_blank" rel="noopener noreferrer">打开网盘 ${icon("external")}</a>` : `<button class="button small" data-source-edit="${i}">${state.demo ? "示例 · 无链接" : "添加链接"}</button>`}</div>`).join("")}<div class="detail-label">我的评分 <small>再次点击当前星级可清除</small></div><div class="stars" aria-label="我的评分">${[1, 2, 3, 4, 5].map((n) => `<button class="${b.rating >= n ? "filled" : ""}" data-rating="${n}" aria-label="${n} 星">★</button>`).join("")}</div><label for="book-notes" class="detail-label">阅读笔记 <small>只保存在当前浏览器</small></label><textarea id="book-notes" class="notes-field" placeholder="记下一句话，或此刻的感受…">${e(b.notes || "")}</textarea></div><div class="dialog-footer"><button class="button small danger" data-action="delete-book">${icon("trash")}移出书库</button><div style="display:flex;gap:8px"><button class="button small" data-action="edit-book">编辑书目</button><button class="button primary small" data-action="save-notes">保存笔记</button></div></div>`;
+    )}</div><div class="reread-control"><span class="read-count-tag">读过 ${readingCount(b)} 次</span><button class="button small" data-action="read-again">${readingCount(b) ? "再读一次 +1" : "记一次已读 +1"}</button>${b.readYears?.length ? `<small>已记录年份：${e(b.readYears.join("、"))}</small>` : ""}</div><div class="detail-label">网盘来源 <small>${b.sources.length} 处来源 · 原网盘保存</small></div>${!b.sources.length ? '<p class="source-empty">这本书已记录，网盘来源待补充。可在编辑书目中填写路径或链接。</p>' : ""}${b.sources.map((s, i) => `<div class="source-row">${driveMark(s.drive)}<div class="source-copy">${e(s.drive)} <span class="format-tag">${e(s.format)}</span><div class="source-path">${e(s.path || "未填写文件路径")}</div></div>${safeURL(s.url) ? `<a class="button small" href="${e(safeURL(s.url))}" target="_blank" rel="noopener noreferrer">打开网盘 ${icon("external")}</a>` : `<button class="button small" data-source-edit="${i}">${state.demo ? "示例 · 无链接" : "添加链接"}</button>`}</div>`).join("")}<div class="detail-label">我的评分 <strong class="rating-label">${b.rating > 0 ? `${e(b.rating)} / 5` : "未评分"}</strong><small>再次点击当前星级可清除</small></div><div class="stars" aria-label="我的评分">${[1, 2, 3, 4, 5].map((n) => `<button class="${b.rating >= n ? "filled" : ""}" data-rating="${n}" aria-label="${n} 星">★</button>`).join("")}</div><label for="book-notes" class="detail-label">阅读笔记 <small>本机缓存，保存 JSON 可备份</small></label><textarea id="book-notes" class="notes-field" placeholder="记下一句话，或此刻的感受…">${e(b.notes || "")}</textarea></div><div class="dialog-footer"><button class="button small danger" data-action="delete-book">${icon("trash")}移出书库</button><div style="display:flex;gap:8px"><button class="button small" data-action="edit-book">编辑书目</button><button class="button primary small" data-action="save-notes">保存笔记</button></div></div>`;
   if (!d.open) d.showModal();
 }
 function openAdd(editBook = null) {
   const b = editBook;
   const s = b?.sources[0] || {};
   const d = $("#form-dialog");
-  d.innerHTML = `<form id="book-form"><div class="dialog-header"><h2>${b ? "编辑书目" : "让一本好书靠岸"}</h2><button type="button" class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">记录书籍信息与网盘入口，文件继续保留在原网盘。${!b && state.demo ? "添加第一本真实书籍时，将替换当前示例书库。" : ""}${b && b.sources.length > 1 ? "这里编辑首个文件来源，其他来源完整保留。" : ""}</p><div class="form-grid"><label class="form-field">书名 *<input name="title" required maxlength="300" value="${e(b?.title || "")}" placeholder="例如：山茶文具店"></label><label class="form-field">作者<input name="author" maxlength="200" value="${e(b?.author || "")}" placeholder="作者姓名，用于识别重复"></label><label class="form-field">分类<input name="category" maxlength="60" list="categories" value="${e(b?.category || "文学")}"><datalist id="categories">${["文学", "历史", "心理", "社会", "成长", "科学", "技术", "艺术", "未分类"].map((x) => `<option>${x}</option>`).join("")}</datalist></label><label class="form-field">阅读次数<input name="readCount" type="number" min="${b?.status === "read" ? 1 : 0}" max="100000" step="1" required value="${b ? readingCount(b) : 0}"><small>多次阅读可累加；未知历史年份无需补填。</small></label><label class="form-field">ISBN<input name="isbn" maxlength="30" value="${e(b?.isbn || "")}" placeholder="选填，优先识别相同版本"></label><label class="form-field">网盘<select name="drive">${DRIVES.map((x) => `<option ${s.drive === x ? "selected" : ""}>${x}</option>`).join("")}</select></label><label class="form-field">文件格式<select name="format">${[...new Set(["EPUB", "PDF", "MOBI", "AZW3", "TXT", s.format].filter(Boolean))].map((x) => `<option ${s.format === x ? "selected" : ""}>${e(x)}</option>`).join("")}</select></label><label class="form-field full">网盘链接<input name="url" type="url" value="${e(s.url || "")}" placeholder="https://pan.baidu.com/s/…"><small>可填写带提取码的完整分享链接；仅允许 http / https。</small></label><label class="form-field full">文件路径（选填）<input name="path" maxlength="2000" value="${e(s.path || "")}" placeholder="/电子书/文学/山茶文具店.epub"></label></div><div id="form-error" class="form-error" role="alert"></div></div><div class="dialog-footer"><span></span><button class="button primary" type="submit">${b ? "保存修改" : "添加到书库"}</button></div></form>`;
+  d.innerHTML = `<form id="book-form"><div class="dialog-header"><h2>${b ? "编辑书目" : "让一本好书靠岸"}</h2><button type="button" class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">记录书籍信息与网盘入口，文件继续保留在原网盘。${!b && state.demo ? "添加第一本真实书籍时，将替换当前示例书库。" : ""}${b && b.sources.length > 1 ? "这里编辑首个文件来源，其他来源完整保留。" : ""}</p><div class="form-grid"><label class="form-field">书名 *<input name="title" required maxlength="300" value="${e(b?.title || "")}" placeholder="例如：山茶文具店"></label><label class="form-field">作者<input name="author" maxlength="200" value="${e(b?.author || "")}" placeholder="作者姓名，用于识别重复"></label><label class="form-field">分类<input name="category" maxlength="60" list="categories" value="${e(b?.category || "文学")}"><datalist id="categories">${["文学", "历史", "心理", "社会", "成长", "科学", "技术", "艺术", "未分类"].map((x) => `<option>${x}</option>`).join("")}</datalist></label><label class="form-field full independent-field"><span><input name="independent" type="checkbox" ${b?.workId ? "checked" : ""}> 按独立书目记录</span><small>分卷可勾选：即使 ISBN 或合集文件相同，也保留为不同书目。</small></label><label class="form-field">阅读次数<input name="readCount" type="number" min="${b?.status === "read" ? 1 : 0}" max="100000" step="1" required value="${b ? readingCount(b) : 0}"><small>多次阅读可累加；未知历史年份无需补填。</small></label><label class="form-field">ISBN<input name="isbn" maxlength="30" value="${e(b?.isbn || "")}" placeholder="选填，优先识别相同版本"></label><label class="form-field">网盘<select name="drive">${DRIVES.map((x) => `<option ${s.drive === x ? "selected" : ""}>${x}</option>`).join("")}</select></label><label class="form-field">文件格式<select name="format">${[...new Set(["EPUB", "PDF", "MOBI", "AZW3", "TXT", s.format].filter(Boolean))].map((x) => `<option ${s.format === x ? "selected" : ""}>${e(x)}</option>`).join("")}</select></label><label class="form-field full">网盘链接<input name="url" type="url" value="${e(s.url || "")}" placeholder="https://pan.baidu.com/s/…"><small>可填写带提取码的完整分享链接；仅允许 http / https。</small></label><label class="form-field full">文件路径（选填）<input name="path" maxlength="2000" value="${e(s.path || "")}" placeholder="/电子书/文学/山茶文具店.epub"></label></div><div id="form-error" class="form-error" role="alert"></div></div><div class="dialog-footer"><span></span><button class="button primary" type="submit">${b ? "保存修改" : "添加到书库"}</button></div></form>`;
   $("#book-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const data = Object.fromEntries(new FormData(ev.target));
@@ -470,11 +476,12 @@ function openAdd(editBook = null) {
         path: data.path,
       };
       const changes = {
+        workId: data.independent ? b.workId || uid() : "",
         title,
         author: data.author.trim() || "未知作者",
         category: data.category.trim() || "未分类",
         isbn: data.isbn.trim(),
-        sources: [source, ...b.sources.slice(1)],
+        sources: b.sources.length || data.path || data.url ? [source, ...b.sources.slice(1)] : [],
         readCount: Number(data.readCount),
         readYears: (b.readYears || []).slice(0, Number(data.readCount)),
         finishedAt: Number(data.readCount) < (b.readYears || []).length ? null : b.finishedAt,
@@ -488,6 +495,7 @@ function openAdd(editBook = null) {
         ],
       };
     } else {
+      if (data.independent) data.workId = uid();
       const prepared = prepareImport([data]).books[0];
       next = {
         demo: false,
@@ -891,7 +899,7 @@ $("#open-library-file").addEventListener("change", async (event) => {
     const next = restoreLibrary(JSON.parse(await file.text()));
     confirmDialog(
       "打开这份 JSON 书库？",
-      `文件「${e(file.name)}」包含 ${groupBooks(next.books).length} 本书。打开后将替换本机草稿；如需保留当前书库，请先取消并保存 JSON。`,
+      `文件「${e(file.name)}」包含 ${groupBooks(next.books).length} 本独立书目、${groupBooks(next.books).reduce((n,b) => n + readingCount(b),0)} 册次阅读。打开后将替换本机草稿；如需保留当前书库，请先取消并保存 JSON。`,
       async () => {
         if (!(await persist(next))) return false;
         $("#book-dialog").close();
