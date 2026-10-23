@@ -207,7 +207,7 @@ export function prepareImport(input) {
           status === "read"
             ? r.finishedAt && Number.isFinite(Date.parse(r.finishedAt))
               ? r.finishedAt
-              : now
+              : null
             : null,
         sources,
       },

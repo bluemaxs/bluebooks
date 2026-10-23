@@ -13,6 +13,17 @@ import {
 } from "../core.js";
 import { demoBooks } from "../seed.js";
 
+test("historical read imports preserve unknown completion dates through JSON restore", () => {
+  const input = { version: 1, books: [{ title: "历史书目", status: "read", finishedAt: null }] };
+  const imported = prepareImport(input).books[0];
+  const restored = restoreLibrary(input).books[0];
+  assert.equal(imported.status, "read");
+  assert.equal(imported.finishedAt, null);
+  assert.equal(restored.status, "read");
+  assert.equal(restored.finishedAt, null);
+  assert.equal(prepareImport([{title: "日期无效", status: "read", finishedAt: "unknown"}]).books[0].finishedAt, null);
+});
+
 test("opening JSON preserves book identifiers and all reading records", () => {
   const original = demoBooks();
   const restored = restoreLibrary({ version: 1, books: original });
@@ -163,7 +174,7 @@ test("imports normalize statuses and reject malformed or empty input", () => {
   ]);
   assert.equal(books[0].title, "A");
   assert.equal(books[0].status, "read");
-  assert.ok(books[0].finishedAt);
+  assert.equal(books[0].finishedAt, null);
   assert.equal(books[0].rating, 5);
   assert.equal(books[0].sources[0].drive, "其他");
   assert.equal(skipped, 2);
