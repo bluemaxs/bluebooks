@@ -37,10 +37,19 @@ test('published default contains the full approved merged snapshot',async()=>{
   const input=JSON.parse(await readFile(new URL('../default-library.json',import.meta.url),'utf8'));
   const state=await loadDefaultLibrary(async()=>({ok:true,json:async()=>input}));
   const groups=groupBooks(state.books);
-  assert.equal(groups.length,7628);assert.ok(groups.every(b=>b.ids.length===1));
+  assert.equal(groups.length,8271);assert.ok(groups.every(b=>b.ids.length===1));
   assert.equal(groups.filter(b=>b.status==='read').length,385);
-  assert.equal(groups.filter(b=>b.status==='unread').length,7243);
+  assert.equal(groups.filter(b=>b.status==='unread').length,7886);
   assert.equal(groups.reduce((n,b)=>n+readingCount(b),0),398);
   const archives=state.books.flatMap(b=>b.sources).filter(s=>s.path.startsWith('/book/')&&['EXE','ZIP','RAR','7Z','E01','E02'].includes(s.format));
   assert.equal(archives.length,430);
+  const aliyun=state.books.flatMap(b=>b.sources).filter(s=>s.drive==='阿里云盘');
+  assert.equal(aliyun.length,2277);
+  for(const [title,year] of [['新推理要在晚餐后',2024],['变形记',2023]]){
+    const book=state.books.find(b=>b.title===title);
+    assert.equal(book.status,'read');assert.equal(book.readCount,1);
+    assert.deepEqual(book.readYears,[year]);
+    assert.equal(book.sources.filter(s=>s.drive==='阿里云盘').length,3);
+  }
+  assert.ok(state.books.some(b=>b.title==='冥想5分钟,等于熟睡一小时'));
 });
