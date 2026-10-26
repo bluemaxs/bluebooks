@@ -1,7 +1,8 @@
 import { escapeHTML as e } from './core.js';
-import { PROJECT_TYPES, money, priceSummary, projectRows } from './projects.js';
+import { PROJECT_TYPES, READER_DEVICES, money, priceSummary, projectRows } from './projects.js';
 
 export function projectPage(kind,data,ui) {
+  if(kind==='readers')return readerPage(data,ui);
   const isPrice=kind==='prices',type=PROJECT_TYPES[kind];
   const count=isPrice?data.sections.reduce((n,s)=>n+s.rows.length,0):data.items.length;
   const head=`<div class="page-heading"><div><div class="eyebrow">${isPrice?'READING VALUE':'MY NEXT READS'}</div><h1>${type.label}</h1><p>${isPrice?'按设备整理书目价格，记录你的回收进度。':'把下一本想读的书，留在这里。绿色行表示已读。'}</p></div><div class="heading-buttons"><button class="button primary" data-action="project-add">＋ 添加${isPrice?'记录':'书目'}</button></div></div>`;
@@ -17,6 +18,7 @@ export function projectPage(kind,data,ui) {
 }
 export function projectResults(kind,data,ui) {
   const filtered=projectRows(kind,data,ui);
+  if(kind==='readers')return {count:filtered.length,html:filtered.length?`<div class="project-table-scroll"><table class="project-table reader-table"><thead><tr><th>书名 / 作者</th><th>存放位置</th><th>备注</th><th><span class="sr-only">操作</span></th></tr></thead><tbody>${filtered.map(r=>`<tr><td class="project-title">${e(r.title)}${r.author?`<small class="reader-author">${e(r.author)}</small>`:''}</td><td class="project-notes" data-label="存放位置">${e(r.location||'—')}</td><td class="project-notes" data-label="备注">${e(r.notes||'—')}</td><td><button class="list-action" data-project-edit="${e(r.id)}" aria-label="编辑${e(r.title)}">编辑</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty-state"><h3>${ui.query?'没有匹配的书目':`${e(READER_DEVICES.find(d=>d.id===(ui.device||'kindle'))?.name||'Kindle')} 里存了哪些书？`}</h3><p>${ui.query?'换个书名、作者或位置试试。':'添加书目，记录它在阅读器中的位置。'}</p>${ui.query?'':'<button class="button primary" data-action="project-add">＋ 添加书目</button>'}</div>`};
   if(kind==='prices'){
     const count=filtered.reduce((n,s)=>n+s.rows.length,0);
     return {count,html:count?filtered.filter(s=>s.rows.length).map(s=>{
@@ -25,4 +27,9 @@ export function projectResults(kind,data,ui) {
     }).join(''):'<div class="empty-state"><h3>没有匹配的价格记录</h3><p>换个关键词或设备分组。</p></div>'};
   }
   return {count:filtered.length,html:filtered.length?`<div class="project-table-scroll"><table class="project-table wishlist-table"><thead><tr><th>书名 / ISBN</th><th>来源</th><th>资源位置</th><th>备注</th><th>状态</th><th><span class="sr-only">操作</span></th></tr></thead><tbody>${filtered.map(r=>`<tr class="${r.status==='read'?'wishlist-read':''}"><td class="project-title">${e(r.title)}${r.isbn?`<small class="project-isbn">${e(r.isbn)}</small>`:''}</td><td class="project-notes">${e(r.source||'—')}</td><td class="project-notes">${e(r.location||'—')}</td><td class="project-notes">${e(r.notes||'—')}</td><td><button class="status-chip ${r.status==='read'?'read':''}" data-wish-toggle="${e(r.id)}" title="点击切换已读/待看">${r.status==='read'?'✓ 已读':'待看'}</button></td><td><button class="list-action" data-project-edit="${e(r.id)}">编辑</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state"><h3>没有匹配的待看书目</h3><p>换个关键词或阅读状态。</p></div>'};
+}
+
+function readerPage(data,ui) {
+  const selected=ui.device||'kindle';
+  return `<div class="page-heading"><div><div class="eyebrow">BOOKS ON MY READERS</div><h1>阅读器内容记录</h1><p>记录书籍放在哪台阅读器，找书时一目了然。</p></div><div class="heading-buttons"><button class="button primary" data-action="project-add">＋ 添加书目</button></div></div><div class="toolbar reader-toolbar"><div class="tabs reader-tabs" role="tablist" aria-label="阅读器">${READER_DEVICES.map(d=>`<button type="button" id="reader-tab-${d.id}" role="tab" aria-selected="${selected===d.id}" aria-controls="reader-panel" tabindex="${selected===d.id?'0':'-1'}" class="tab ${selected===d.id?'active':''}" data-reader-device="${d.id}">${d.name}<span>${data.items.filter(r=>r.deviceId===d.id).length}</span></button>`).join('')}</div></div><section id="reader-panel" role="tabpanel" aria-labelledby="reader-tab-${selected}"><div class="project-filter-bar"><label class="search-box"><input id="project-search" type="search" aria-label="搜索阅读器书单" placeholder="搜索书名、作者、存放位置或备注…" value="${e(ui.query||'')}"></label><span class="result-count" id="project-result-count"></span></div><p class="project-file-note reader-file-note">Kindle 和 X3 共用一份 reader-contents.json。切换标签查看各自书单；同一本书可以分别记录在两台设备中。</p><div id="project-results"></div></section>`;
 }

@@ -48,7 +48,7 @@ async function writeValue(key, state) {
 export const readLibrary = () => readValue("state");
 export const writeLibrary = state => writeValue("state",state);
 function datasetKey(name) {
-  if(!['price-plan','wishlist'].includes(name))throw new Error('未知数据文件。');
+  if(!['price-plan','wishlist','reader-contents'].includes(name))throw new Error('未知数据文件。');
   return 'dataset:'+name;
 }
 export const readDataset = name => readValue(datasetKey(name));

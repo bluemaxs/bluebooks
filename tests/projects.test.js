@@ -5,7 +5,7 @@ import {projectPage, projectResults} from '../project-pages.js';
 import {prepareImport, restoreLibrary, groupBooks, readingCount, recordRead, parseCSV} from '../core.js';
 const plan=()=>({app:'bluebooks-price-plan',version:1,sections:[{id:'a',name:'Reader',cost:100,milestone:200,rows:[{id:'r1',title:'A',price:0.1},{id:'r2',title:'B',price:0.2},{id:'r3',title:'C',price:null}]}]});
 const wishes=()=>({app:'bluebooks-wishlist',version:1,items:[{id:'w1',title:'<script>',status:'read',originalFill:'green'},{id:'w2',title:'Next',status:'unread'}]});
-test('three JSON datasets reject each other rather than replace the wrong draft',()=>{
+test('independent JSON datasets reject each other rather than replace the wrong draft',()=>{
   assert.throws(()=>normalizeProject('prices',wishes()));
   assert.throws(()=>normalizeProject('wishlist',plan()));
   assert.throws(()=>normalizeProject('prices',{app:'bluebooks',version:1,books:[]}));

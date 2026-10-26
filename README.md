@@ -9,8 +9,10 @@
 - 同一本书集中展示多个网盘和文件格式；打开已有分享链接。
 - 重复书目整理：按有效 ISBN，或规范化后相同的书名与作者识别；归并后保留全部文件来源和不同笔记。
 - 独立的已读书籍页面，完成日期、评分、笔记、收藏；显示已读总数（含重读）、独立书目数和逐年次数，支持「再读一次 +1」和手动调整次数。
+- 点击已读页的年份即可筛选当年读过的书；提供「全部年份」「未记录年份」，并可叠加搜索、分类、网盘与格式筛选。跨年重读会分别出现在相应年份，同年多次阅读按册次统计。
 - 价格回收计划：按设备展示成本、回收进度、书目价格和备注，支持搜索、编辑及独立 JSON 导入导出。
 - 待看清单：书名、ISBN、来源、资源位置、备注与状态；绿色行表示已读，支持筛选、编辑及独立 JSON 导入导出。
+- 阅读器内容记录：Kindle、X3 两个标签页，记录书名、作者、存放位置和备注，支持新增、编辑、移除、搜索及切换所属阅读器。两台设备共用一份 `reader-contents.json`。
 - 新增、编辑、移出书目；CSV / JSON 批量追加导入。
 - 打开完整 JSON 书库，以及保存完整 JSON 文件；支持手机浏览器。
 - 浏览器本机草稿缓存（IndexedDB），无账号、无云端数据库、无第三方运行时依赖。
@@ -42,21 +44,26 @@
 
 **默认书库是公开发布的数据。** GitHub 仓库和 Pages 会包含其中的书名、网盘路径、阅读状态、评分和笔记。本次按你的要求纳入默认快照；之后在浏览器做的修改仍保存在本机，需要导出 JSON 才能带走。
 
-## 两个独立清单
+## 独立清单与阅读器记录
 
 侧栏新增 **价格回收计划** 与 **待看清单**。在对应页面使用右上角的打开 / 保存按钮，分别管理 `price-plan.json` 和 `wishlist.json`。它们与 `library.json` 分开存储；打开一个文件只替换对应数据集的浏览器草稿。每个数据集都要单独保存和同步。待看状态与主书库的阅读状态独立管理。
+
+**阅读器内容记录** 使用一份 `reader-contents.json` 同时保存 Kindle、X3 的全部书单，打开或保存一次即包含两台设备；不会按阅读器拆成多个文件。切换标签只切换当前列表，同一本书可分别记录在两台阅读器中。记录书籍是否存放在设备上，不会改动主书库的阅读状态。首次打开两个标签页均为空，可直接添加书目，或打开已有的阅读器 JSON。
 
 | 文件 | JSON 标识 app | 主要字段 |
 | --- | --- | --- |
 | `library.json` | `bluebooks` | `version: 1, books: [...]` |
 | `price-plan.json` | `bluebooks-price-plan` | `version: 1, currency: "CNY", sections: [...]` |
 | `wishlist.json` | `bluebooks-wishlist` | `version: 1, items: [...]` |
+| `reader-contents.json` | `bluebooks-reader-contents` | `version: 1, devices: [...], items: [...]` |
 
 价格分组包含 `id, name, title, cost, milestone, rows`；行包含 `id, title, price, notes`。`price: null` 表示未计入，`0` 表示计入零元。合计使用整数分计算；保留源表总计供追溯，页面合计随记录编辑重新计算。
 
 待看行包含 `id, title, isbn, source, location, notes, status`；状态为 `unread` 或 `read`。从原表生成 JSON 时将填色行标为已读；之后页面按 `status` 显示绿色，点击状态可切换。
 
 真实表格数据保存在仓库外。新设备首次打开页面时，需要自行载入对应 JSON。
+
+阅读器 JSON 的 `devices` 固定为 `[{"id":"kindle","name":"Kindle"},{"id":"x3","name":"X3"}]`；每条 `items` 包含 `id, deviceId, title, author, location, notes`，其中 `deviceId` 为 `kindle` 或 `x3`。可参考 [空白阅读器文件](examples/reader-contents.json)。编辑时可以更换阅读器，把同一条记录移到另一个标签页；两台设备都有同一本书时应分别添加两条记录。
 
 ## 本地启动
 

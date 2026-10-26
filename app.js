@@ -13,9 +13,11 @@ import {
   readingCount,
   recordRead,
   readingCountForYear,
+  readingCountForSelection,
   uid,
 } from "./core.js";
 import { ProjectController } from "./project-ui.js";
+import { PROJECT_TYPES } from "./projects.js";
 import { initialLibrary, loadDefaultLibrary } from "./default-library.js";
 import { readLibrary, writeLibrary } from "./storage.js";
 
@@ -40,6 +42,7 @@ const paths = {
   clock: "M12 8v4l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
   trash: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7",
   folder: "M3 7V4h6l3 3h9v13H3Z",
+  reader: "M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM8 7h8M8 11h8M11 17h2",
   star: "m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z",
 };
 const icon = (name, cls = "") =>
@@ -83,6 +86,7 @@ let page = "library",
   drive = "",
   format = "",
   sort = "added",
+  readYear = "",
   currentPage = 1;
 let dialogBookId = null,
   importPending = null,
@@ -94,6 +98,7 @@ const pageNames = {
   duplicates: "重复整理",
   prices: "价格回收计划",
   wishlist: "待看清单",
+  readers: "阅读器内容记录",
 };
 let cachedBooks, cachedGroups;
 const groups = () => {
@@ -142,6 +147,7 @@ function navigate(to, newDrive = "") {
   category = "";
   drive = newDrive;
   format = "";
+  readYear = "";
   currentPage = 1;
   history.replaceState(
     null,
@@ -172,6 +178,7 @@ function nav() {
     ["duplicates", "copy", all.filter((x) => x.ids.length > 1).length],
     ["prices", "list", projects.count("prices")],
     ["wishlist", "clock", projects.count("wishlist")],
+    ["readers", "reader", projects.count("readers")],
   ];
   $("#navigation").innerHTML = items
     .map(
@@ -188,6 +195,12 @@ function nav() {
     .join("");
   $("#breadcrumb").textContent = drive || pageNames[page];
   $("#backup-button").innerHTML = icon("download") + "备份与数据管理";
+  const menu = $("#navigation"), active = $("#navigation .active");
+  if (active && menu.scrollWidth > menu.clientWidth) {
+    const item = active.getBoundingClientRect(), view = menu.getBoundingClientRect();
+    if (item.right > view.right) menu.scrollLeft += item.right - view.right;
+    else if (item.left < view.left) menu.scrollLeft -= view.left - item.left;
+  }
 }
 function heading(
   title,
@@ -232,7 +245,7 @@ function stats() {
 }
 function filtered() {
   let all = [...groups()];
-  if (page === "read") all = all.filter((x) => readingCount(x) > 0);
+  if (page === "read") all = all.filter((x) => readingCountForSelection(x, readYear) > 0);
   if (page === "favorites") all = all.filter((x) => x.favorite);
   if (tab !== "all") all = all.filter((x) => x.status === tab);
   if (drive)
@@ -277,7 +290,7 @@ function controls() {
     ...new Set(all.flatMap((x) => x.sources.map((s) => s.format))),
   ].sort();
   return `<div class="toolbar"><div class="tabs">${(page === "read"
-    ? [["all", "阅读足迹"]]
+    ? [["all", `${readYear === "unknown" ? "未记录年份" : readYear ? readYear + " 年" : ""}阅读足迹`]]
     : page === "favorites"
       ? [["all", "心头好书"]]
       : [
@@ -289,7 +302,7 @@ function controls() {
   )
     .map(
       ([k, label]) =>
-        `<button class="tab ${tab === k ? "active" : ""}" data-tab="${k}">${label}<span>${all.filter((x) => (page !== "read" || readingCount(x) > 0) && (page !== "favorites" || x.favorite) && (!drive || x.sources.some((s) => s.drive === drive)) && (k === "all" || x.status === k)).length}</span></button>`,
+        `<button class="tab ${tab === k ? "active" : ""}" data-tab="${k}">${label}<span>${all.filter((x) => (page !== "read" || readingCountForSelection(x, readYear) > 0) && (page !== "favorites" || x.favorite) && (!drive || x.sources.some((s) => s.drive === drive)) && (k === "all" || x.status === k)).length}</span></button>`,
     )
     .join(
       "",
@@ -313,7 +326,7 @@ function renderResults() {
   const start = (currentPage - 1) * 18;
   const visible = all.slice(start, start + 18);
   $("#result-count").textContent = page === "read"
-    ? `${all.length} 本独立书目 · ${all.reduce((n, b) => n + readingCount(b), 0)} 册次（含重读）`
+    ? `${readYear === "unknown" ? "未记录年份 · " : readYear ? readYear + " 年 · " : ""}${all.length} 本独立书目 · ${all.reduce((n, b) => n + readingCountForSelection(b, readYear), 0)} 册次（含重读）`
     : `共 ${all.length} 本书籍`;
   $("#results").innerHTML = all.length
     ? list(visible) +
@@ -349,7 +362,9 @@ function readSummary() {
   const totalCount = groups().reduce((n, x) => n + readingCount(x), 0);
   const notes = all.filter((x) => x.notes).length;
   const years = [...new Set(groups().flatMap(b => b.readYears?.length ? b.readYears : b.finishedAt ? [new Date(b.finishedAt).getFullYear()] : []))].sort((a,b) => b-a);
-  const annualSummary = years.length ? `<div class="reading-years" aria-label="各年阅读总数">${years.map(y => `<span><strong>${y}</strong> ${groups().reduce((n,b) => n + readingCountForYear(b,y),0)} 册次</span>`).join("")}</div>` : "";
+  const unknown = all.reduce((n,b) => n + readingCountForSelection(b,"unknown"),0);
+  const selections = [["", "全部年份", totalCount], ...years.map(y => [String(y), String(y), all.reduce((n,b) => n + readingCountForYear(b,y),0)]), ...(unknown ? [["unknown", "未记录年份", unknown]] : [])];
+  const annualSummary = `<div class="reading-years" role="group" aria-label="按阅读年份筛选">${selections.map(([value,label,count]) => `<button type="button" class="reading-year ${readYear === value ? "active" : ""}" data-read-year="${value}" aria-pressed="${readYear === value}"><strong>${label}</strong> ${count} 册次</button>`).join("")}</div>`;
   return `<div class="read-summary"><div><strong>${yearCount}</strong><p>${year} 年已记录 / 次</p></div><div><strong>${totalCount}</strong><p>已读总数 / 册次（含重读）</p></div><div><strong>${notes}</strong><p>留下阅读笔记 / 本</p></div><div class="read-quote">「读过的书，都藏在你的气质里。」</div></div>${annualSummary}`;
 }
 function duplicatePage() {
@@ -375,8 +390,9 @@ function duplicatePage() {
 function render() {
   nav();
   const project = projects.isProject(page);
-  $("#open-json-button").textContent = project ? `打开${page === "prices" ? "价格" : "待看"} JSON` : "打开 JSON 书库";
-  $("#save-json-button").textContent = project ? `保存${page === "prices" ? "价格" : "待看"} JSON` : "保存 JSON";
+  const datasetLabel = PROJECT_TYPES[page]?.shortLabel || (page === "prices" ? "价格" : "待看");
+  $("#open-json-button").textContent = project ? `打开${datasetLabel} JSON` : "打开 JSON 书库";
+  $("#save-json-button").textContent = project ? `保存${datasetLabel} JSON` : "保存 JSON";
   let content = "";
   if (storageBroken)
     content +=
@@ -618,6 +634,12 @@ document.addEventListener("click", async (ev) => {
     render();
     return;
   }
+  if (ds.readYear !== undefined && page === "read") {
+    readYear = ds.readYear;
+    currentPage = 1;
+    render();
+    return;
+  }
   if (ds.pageno) {
     currentPage = Number(ds.pageno);
     renderResults();
@@ -731,6 +753,7 @@ document.addEventListener("click", async (ev) => {
     drive = "";
     format = "";
     tab = "all";
+    readYear = "";
     currentPage = 1;
     render();
   } else if (a === "save-notes") {
@@ -776,7 +799,7 @@ document.addEventListener("click", async (ev) => {
   else if (a === "load-default") {
     confirmDialog(
       "载入默认书库？",
-      "将使用网站自带书库替换本机草稿。请先保存你在本机做过的修改；价格计划和待看清单仍独立保留。",
+      "将使用网站自带书库替换本机草稿。请先保存你在本机做过的修改；价格计划、待看清单和阅读器记录仍独立保留。",
       async () => {
         const button = $("#confirm-action");
         button.disabled = true;

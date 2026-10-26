@@ -3,7 +3,9 @@ import { uid } from "./core.js";
 export const PROJECT_TYPES = {
   prices: { app: "bluebooks-price-plan", file: "price-plan.json", label: "价格回收计划", cache: "price-plan" },
   wishlist: { app: "bluebooks-wishlist", file: "wishlist.json", label: "待看清单", cache: "wishlist" },
+  readers: { app: "bluebooks-reader-contents", file: "reader-contents.json", label: "阅读器内容记录", shortLabel: "阅读器", cache: "reader-contents" },
 };
+export const READER_DEVICES = [{id:'kindle',name:'Kindle'},{id:'x3',name:'X3'}];
 export const money = value => value === null || value === undefined ? "未计入" : `¥${Number(value).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const text = (value, max = 50000) => String(value ?? "").slice(0, max);
 function amount(value, optional = false) {
@@ -18,11 +20,11 @@ function amount(value, optional = false) {
 export function emptyProject(kind) {
   const type=PROJECT_TYPES[kind];
   if(!type) throw new Error("未知清单类型。");
-  return {app:type.app,version:1,...(kind==='prices'?{currency:'CNY',sections:[]}:{items:[]})};
+  return {app:type.app,version:1,...(kind==='prices'?{currency:'CNY',sections:[]}:kind==='readers'?{devices:READER_DEVICES.map(d=>({...d})),items:[]}:{items:[]})};
 }
 export function normalizeProject(kind, input) {
   const type=PROJECT_TYPES[kind];
-  if(!type || input?.app !== type.app || input.version !== 1) throw new Error(`请选择 ${type?.file || '正确的 JSON 文件'}；书库、价格计划和待看清单使用不同格式。`);
+  if(!type || input?.app !== type.app || input.version !== 1) throw new Error(`请选择 ${type?.file || '正确的 JSON 文件'}；各页面的 JSON 文件使用不同格式。`);
   if(kind==='prices') {
     if(!Array.isArray(input.sections) || input.sections.length>100) throw new Error("价格计划需要 sections 数组，最多 100 个分组。");
     const sectionIds=new Set(),rowIds=new Set();
@@ -37,6 +39,19 @@ export function normalizeProject(kind, input) {
     });
     return {...input,app:type.app,version:1,currency:'CNY',sections};
   }
+  if(kind==='readers') {
+    if(!Array.isArray(input.items)||input.items.length>100000)throw new Error('阅读器书单需要 items 数组，最多 100,000 条。');
+    const devices=new Set(READER_DEVICES.map(d=>d.id));
+    if(input.devices!==undefined && (!Array.isArray(input.devices)||input.devices.length!==devices.size||new Set(input.devices.map(d=>d?.id)).size!==devices.size||input.devices.some(d=>!devices.has(d?.id))))throw new Error('阅读器分组须包含 Kindle 和 X3，不能缺少或重复。');
+    const ids=new Set();
+    const items=input.items.map(r=>{
+      if(!r||!text(r.title).trim())throw new Error('阅读器记录缺少书名。');
+      if(!devices.has(r.deviceId))throw new Error('请选择 Kindle 或 X3 作为阅读器。');
+      const id=text(r.id||uid(),100);if(ids.has(id))throw new Error('阅读器记录的编号重复。');ids.add(id);
+      return {...r,id,deviceId:r.deviceId,title:text(r.title,500).trim(),author:text(r.author,200).trim(),location:text(r.location,2000),notes:text(r.notes)};
+    });
+    return {...input,app:type.app,version:1,devices:READER_DEVICES.map(d=>({...d})),items};
+  }
   if(!Array.isArray(input.items)||input.items.length>100000)throw new Error("待看清单需要 items 数组，最多 100,000 条。");
   const ids=new Set();
   return {...input,app:type.app,version:1,items:input.items.map(r=>{
@@ -50,8 +65,9 @@ export function priceSummary(section) {
   const costCents=Math.round(section.cost*100),targetCents=Math.round(section.milestone*100);
   return {total:totalCents/100,count:section.rows.length,priced:section.rows.filter(r=>r.price!==null).length,remaining:Math.max(0,costCents-totalCents)/100,targetRemaining:Math.max(0,targetCents-totalCents)/100,ratio:costCents?totalCents/costCents:null};
 }
-export function projectRows(kind,data,{query='',section='',status='all'}={}) {
+export function projectRows(kind,data,{query='',section='',status='all',device='kindle'}={}) {
   const q=query.toLocaleLowerCase().trim();
   if(kind==='prices')return data.sections.filter(s=>!section||s.id===section).map(s=>({...s,rows:s.rows.filter(r=>!q||[r.title,r.notes,r.price].join(' ').toLocaleLowerCase().includes(q))}));
+  if(kind==='readers')return data.items.filter(r=>r.deviceId===device&&(!q||[r.title,r.author,r.location,r.notes].join(' ').toLocaleLowerCase().includes(q)));
   return data.items.filter(r=>(status==='all'||r.status===status)&&(!q||[r.title,r.isbn,r.source,r.location,r.notes].join(' ').toLocaleLowerCase().includes(q)));
 }

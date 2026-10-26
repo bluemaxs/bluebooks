@@ -1,0 +1,9 @@
+{
+  "app": "bluebooks-reader-contents",
+  "version": 1,
+  "devices": [
+    { "id": "kindle", "name": "Kindle" },
+    { "id": "x3", "name": "X3" }
+  ],
+  "items": []
+}

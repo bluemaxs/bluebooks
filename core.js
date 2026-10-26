@@ -23,6 +23,14 @@ export function readingCountForYear(book, year) {
   if (book.readYears?.length) return book.readYears.filter(y => y === Number(year)).length;
   return book.finishedAt && new Date(book.finishedAt).getFullYear() === Number(year) ? 1 : 0;
 }
+export function readingCountForSelection(book, year = "") {
+  if (year === "") return readingCount(book);
+  if (year === "unknown") {
+    const dated = book.readYears?.length || (book.finishedAt && Number.isFinite(new Date(book.finishedAt).getTime()) ? 1 : 0);
+    return Math.max(0, readingCount(book) - dated);
+  }
+  return readingCountForYear(book, year);
+}
 export const escapeHTML = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
