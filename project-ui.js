@@ -26,11 +26,20 @@ export class ProjectController {
     document.addEventListener('change',event=>{
       if(event.target.id==='project-section'){this.ui.section=event.target.value;this.renderResults();}
       if(event.target.id==='project-status'){this.ui.status=event.target.value;this.renderResults();}
+      if(event.target.dataset.readerRecord){
+        const id=event.target.dataset.readerRecord;
+        const next={...this.data.readers,items:this.data.readers.items.map(r=>r.id===id?{...r,status:event.target.value}:r)};
+        this.save('readers',next).then(saved=>{this.callbacks.render();if(saved)this.callbacks.toast('阅读器状态已更新。');});
+      }
     });
     document.addEventListener('click',async event=>{
       const target=event.target.closest('button');if(!target)return;
       const kind=this.callbacks.page();if(!this.isProject(kind))return;
       if(kind==='readers'&&target.dataset.readerDevice)this.selectDevice(target.dataset.readerDevice);
+      if(kind==='readers'&&target.dataset.readerStatus){
+        this.ui.status=target.dataset.readerStatus;this.callbacks.render();
+        document.querySelector(`[data-reader-status="${this.ui.status}"]`)?.focus();
+      }
       if(target.dataset.action==='project-add')this.edit(kind);
       if(target.dataset.projectEdit)this.edit(kind,target.dataset.projectEdit);
       if(target.dataset.wishToggle){
@@ -86,7 +95,7 @@ export class ProjectController {
       fields=data.sections.length?`<label class="form-field full">设备分组<select name="section">${data.sections.map(s=>`<option value="${e(s.id)}" ${section?.id===s.id?'selected':''}>${e(s.name)}</option>`).join('')}</select></label>`:`${input('deviceName','设备名称 *','','required maxlength="200"')}${input('cost','设备成本 *','','type="number" min="0" step="0.01" required')}${input('milestone','两倍回收目标 *','','type="number" min="0" step="0.01" required')}`;
       fields+=input('title','书名 *',record?.title,'required maxlength="500"')+`<label class="form-field full">价格（元，留空不计入）<input name="price" type="number" min="0" step="0.01" value="${record?.price===null||record?.price===undefined?'':e(record.price)}"></label>`;
     }else if(isReader){
-      fields=`<label class="form-field full">阅读器<select name="deviceId">${READER_DEVICES.map(d=>`<option value="${d.id}" ${(record?.deviceId||this.ui.device)===d.id?'selected':''}>${d.name}</option>`).join('')}</select></label>`+input('title','书名 *',record?.title,'required maxlength="500"')+input('author','作者（选填）',record?.author,'maxlength="200"')+`<label class="form-field full">存放位置（选填）<input name="location" maxlength="2000" value="${e(record?.location||'')}" placeholder="例如：documents/文学，或设备里的收藏夹名称"></label>`;
+      fields=`<label class="form-field">阅读器<select name="deviceId">${READER_DEVICES.map(d=>`<option value="${d.id}" ${(record?.deviceId||this.ui.device)===d.id?'selected':''}>${d.name}</option>`).join('')}</select></label><label class="form-field">阅读状态<select name="status">${Object.entries({unread:'未读',reading:'在读',read:'已读'}).map(([value,label])=>`<option value="${value}" ${(record?.status||'unread')===value?'selected':''}>${label}</option>`).join('')}</select></label>`+input('title','书名 *',record?.title,'required maxlength="500"')+input('author','作者（选填）',record?.author,'maxlength="200"')+`<label class="form-field full">存放位置（选填）<input name="location" maxlength="2000" value="${e(record?.location||'')}" placeholder="例如：documents/文学，或设备里的收藏夹名称"></label>`;
     }else{
       fields=input('title','书名 *',record?.title,'required maxlength="500"')+input('isbn','ISBN',record?.isbn,'maxlength="50"')+`<label class="form-field">状态<select name="status"><option value="unread" ${record?.status!=='read'?'selected':''}>待看</option><option value="read" ${record?.status==='read'?'selected':''}>已读</option></select></label><label class="form-field full">来源<textarea name="source" class="notes-field" style="min-height:60px">${e(record?.source||'')}</textarea></label><label class="form-field full">资源位置<textarea name="location" class="notes-field" style="min-height:60px">${e(record?.location||'')}</textarea></label>`;
     }

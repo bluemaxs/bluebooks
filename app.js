@@ -17,6 +17,7 @@ import {
   uid,
 } from "./core.js";
 import { ProjectController } from "./project-ui.js";
+import { mountSourceEditor, openSplitDialog } from "./book-editors.js";
 import { PROJECT_TYPES } from "./projects.js";
 import { initialLibrary, loadDefaultLibrary } from "./default-library.js";
 import { readLibrary, writeLibrary } from "./storage.js";
@@ -185,7 +186,7 @@ function nav() {
       ([p, i, n]) =>
         `<button class="nav-item ${page === p && !drive ? "active" : ""}" data-page="${p}">${icon(i)}${pageNames[p]}${n !== null ? `<span class="count">${n}</span>` : ""}</button>`,
     )
-    .join("");
+    .join("") + `<button class="nav-item mobile-backup" data-action="backup">${icon("download")}备份与数据管理</button>`;
   $("#drive-count").textContent = DRIVES.slice(0, 3).length;
   $("#drive-navigation").innerHTML = DRIVES.slice(0, 3)
     .map(
@@ -390,9 +391,6 @@ function duplicatePage() {
 function render() {
   nav();
   const project = projects.isProject(page);
-  const datasetLabel = PROJECT_TYPES[page]?.shortLabel || (page === "prices" ? "价格" : "待看");
-  $("#open-json-button").textContent = project ? `打开${datasetLabel} JSON` : "打开 JSON 书库";
-  $("#save-json-button").textContent = project ? `保存${datasetLabel} JSON` : "保存 JSON";
   let content = "";
   if (storageBroken)
     content +=
@@ -444,68 +442,36 @@ function openBook(id) {
     )
     .join(
       "",
-    )}</div><div class="reread-control"><span class="read-count-tag">读过 ${readingCount(b)} 次</span><button class="button small" data-action="read-again">${readingCount(b) ? "再读一次 +1" : "记一次已读 +1"}</button>${b.readYears?.length ? `<small>已记录年份：${e(b.readYears.join("、"))}</small>` : ""}</div><div class="detail-label">网盘来源 <small>${b.sources.length} 处来源 · 原网盘保存</small></div>${!b.sources.length ? '<p class="source-empty">这本书已记录，网盘来源待补充。可在编辑书目中填写路径或链接。</p>' : ""}${b.sources.map((s, i) => `<div class="source-row">${driveMark(s.drive)}<div class="source-copy">${e(s.drive)} <span class="format-tag">${e(s.format)}</span><div class="source-path">${e(s.path || "未填写文件路径")}</div></div>${safeURL(s.url) ? `<a class="button small" href="${e(safeURL(s.url))}" target="_blank" rel="noopener noreferrer">打开网盘 ${icon("external")}</a>` : `<button class="button small" data-source-edit="${i}">${state.demo ? "示例 · 无链接" : "添加链接"}</button>`}</div>`).join("")}<div class="detail-label">我的评分 <strong class="rating-label">${b.rating > 0 ? `${e(b.rating)} / 5` : "未评分"}</strong><small>再次点击当前星级可清除</small></div><div class="stars" aria-label="我的评分">${[1, 2, 3, 4, 5].map((n) => `<button class="${b.rating >= n ? "filled" : ""}" data-rating="${n}" aria-label="${n} 星">★</button>`).join("")}</div><label for="book-notes" class="detail-label">阅读笔记 <small>本机缓存，保存 JSON 可备份</small></label><textarea id="book-notes" class="notes-field" placeholder="记下一句话，或此刻的感受…">${e(b.notes || "")}</textarea></div><div class="dialog-footer"><button class="button small danger" data-action="delete-book">${icon("trash")}移出书库</button><div style="display:flex;gap:8px"><button class="button small" data-action="edit-book">编辑书目</button><button class="button primary small" data-action="save-notes">保存笔记</button></div></div>`;
+    )}</div><div class="reread-control"><span class="read-count-tag">读过 ${readingCount(b)} 次</span><button class="button small" data-action="read-again">${readingCount(b) ? "再读一次 +1" : "记一次已读 +1"}</button>${b.readYears?.length ? `<small>已记录年份：${e(b.readYears.join("、"))}</small>` : ""}</div><div class="detail-label">网盘来源 <small>${b.sources.length} 处来源 · 原网盘保存</small></div>${!b.sources.length ? '<p class="source-empty">这本书已记录，网盘来源待补充。可在编辑书目中填写路径或链接。</p>' : ""}${b.sources.map((s, i) => `<div class="source-row">${driveMark(s.drive)}<div class="source-copy">${e(s.drive)} <span class="format-tag">${e(s.format)}</span><div class="source-path">${e(s.path || "未填写文件路径")}</div></div>${safeURL(s.url) ? `<a class="button small" href="${e(safeURL(s.url))}" target="_blank" rel="noopener noreferrer">打开网盘 ${icon("external")}</a>` : ""}</div>`).join("")}<div class="detail-label">我的评分 <strong class="rating-label">${b.rating > 0 ? `${e(b.rating)} / 5` : "未评分"}</strong><small>再次点击当前星级可清除</small></div><div class="stars" aria-label="我的评分">${[1, 2, 3, 4, 5].map((n) => `<button class="${b.rating >= n ? "filled" : ""}" data-rating="${n}" aria-label="${n} 星">★</button>`).join("")}</div><label for="book-notes" class="detail-label">阅读笔记 <small>本机缓存，保存 JSON 可备份</small></label><textarea id="book-notes" class="notes-field" placeholder="记下一句话，或此刻的感受…">${e(b.notes || "")}</textarea></div><div class="dialog-footer"><button class="button small danger" data-action="delete-book">${icon("trash")}移出书库</button><div style="display:flex;gap:8px"><button class="button small" data-action="split-book">拆分合集</button><button class="button small" data-action="edit-book">编辑书目</button><button class="button primary small" data-action="save-notes">保存笔记</button></div></div>`;
   if (!d.open) d.showModal();
 }
 function openAdd(editBook = null) {
-  const b = editBook;
-  const s = b?.sources[0] || {};
-  const d = $("#form-dialog");
-  d.innerHTML = `<form id="book-form"><div class="dialog-header"><h2>${b ? "编辑书目" : "让一本好书靠岸"}</h2><button type="button" class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">记录书籍信息与网盘入口，文件继续保留在原网盘。${b && b.sources.length > 1 ? "这里编辑首个文件来源，其他来源完整保留。" : ""}</p><div class="form-grid"><label class="form-field">书名 *<input name="title" required maxlength="300" value="${e(b?.title || "")}" placeholder="例如：山茶文具店"></label><label class="form-field">作者<input name="author" maxlength="200" value="${e(b?.author || "")}" placeholder="作者姓名，用于识别重复"></label><label class="form-field">分类<input name="category" maxlength="60" list="categories" value="${e(b?.category || "文学")}"><datalist id="categories">${["文学", "历史", "心理", "社会", "成长", "科学", "技术", "艺术", "未分类"].map((x) => `<option>${x}</option>`).join("")}</datalist></label><label class="form-field full independent-field"><span><input name="independent" type="checkbox" ${b?.workId ? "checked" : ""}> 按独立书目记录</span><small>分卷可勾选：即使 ISBN 或合集文件相同，也保留为不同书目。</small></label><label class="form-field">阅读次数<input name="readCount" type="number" min="${b?.status === "read" ? 1 : 0}" max="100000" step="1" required value="${b ? readingCount(b) : 0}"><small>多次阅读可累加；未知历史年份无需补填。</small></label><label class="form-field">ISBN<input name="isbn" maxlength="30" value="${e(b?.isbn || "")}" placeholder="选填，优先识别相同版本"></label><label class="form-field">网盘<select name="drive">${DRIVES.map((x) => `<option ${s.drive === x ? "selected" : ""}>${x}</option>`).join("")}</select></label><label class="form-field">文件格式<select name="format">${[...new Set(["EPUB", "PDF", "MOBI", "AZW3", "TXT", s.format].filter(Boolean))].map((x) => `<option ${s.format === x ? "selected" : ""}>${e(x)}</option>`).join("")}</select></label><label class="form-field full">网盘链接<input name="url" type="url" value="${e(s.url || "")}" placeholder="https://pan.baidu.com/s/…"><small>可填写带提取码的完整分享链接；仅允许 http / https。</small></label><label class="form-field full">文件路径（选填）<input name="path" maxlength="2000" value="${e(s.path || "")}" placeholder="/电子书/文学/山茶文具店.epub"></label></div><div id="form-error" class="form-error" role="alert"></div></div><div class="dialog-footer"><span></span><button class="button primary" type="submit">${b ? "保存修改" : "添加到书库"}</button></div></form>`;
-  $("#book-form").addEventListener("submit", async (ev) => {
-    ev.preventDefault();
-    const data = Object.fromEntries(new FormData(ev.target));
-    if (data.url && !safeURL(data.url)) {
-      $("#form-error").textContent = "请输入有效的 http / https 链接。";
-      return;
-    }
-    const title = data.title.trim();
-    if (!title) {
-      $("#form-error").textContent = "请填写书名。";
-      return;
-    }
-    let next;
-    if (b) {
-      const source = {
-        ...s,
-        drive: data.drive,
-        format: data.format,
-        url: safeURL(data.url),
-        path: data.path,
-      };
+  const b = editBook, d = $("#form-dialog");
+  d.innerHTML = `<form id="book-form"><div class="dialog-header"><h2>${b ? "编辑书目" : "让一本好书靠岸"}</h2><button type="button" class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">记录书籍信息与网盘入口，文件继续保留在原网盘。下方可管理全部来源和文件格式。</p><div class="form-grid"><label class="form-field">书名 *<input name="title" required maxlength="300" value="${e(b?.title || "")}" placeholder="例如：山茶文具店"></label><label class="form-field">作者<input name="author" maxlength="200" value="${e(b?.author || "")}" placeholder="作者姓名，用于识别重复"></label><label class="form-field">分类<input name="category" maxlength="60" list="categories" value="${e(b?.category || "文学")}"><datalist id="categories">${["文学", "历史", "心理", "社会", "成长", "科学", "技术", "艺术", "未分类"].map(x=>`<option>${x}</option>`).join("")}</datalist></label><label class="form-field full independent-field"><span><input name="independent" type="checkbox" ${b?.workId ? "checked" : ""}> 按独立书目记录</span><small>分卷即使 ISBN 或合集文件相同，也保留为不同书目。</small></label><label class="form-field">阅读次数<input name="readCount" type="number" min="${b?.status === "read" ? 1 : 0}" max="100000" step="1" required value="${b ? readingCount(b) : 0}"><small>未知历史年份无需补填。</small></label><label class="form-field">ISBN<input name="isbn" maxlength="30" value="${e(b?.isbn || "")}" placeholder="选填，优先识别相同版本"></label></div><section id="source-editor"></section><div id="form-error" class="form-error" role="alert"></div></div><div class="dialog-footer"><span></span><button class="button primary" type="submit">${b ? "保存修改" : "添加到书库"}</button></div></form>`;
+  const sources = mountSourceEditor($("#source-editor"), b?.sources || []);
+  $("#book-form").addEventListener("submit", async ev => {
+    ev.preventDefault(); $("#form-error").textContent = "";
+    try {
+      const data = Object.fromEntries(new FormData(ev.target));
+      const title = data.title.trim();
+      if (!title) throw Error("请填写书名。");
       const changes = {
-        workId: data.independent ? b.workId || uid() : "",
-        title,
-        author: data.author.trim() || "未知作者",
-        category: data.category.trim() || "未分类",
-        isbn: data.isbn.trim(),
-        sources: b.sources.length || data.path || data.url ? [source, ...b.sources.slice(1)] : [],
-        readCount: Number(data.readCount),
-        readYears: (b.readYears || []).slice(0, Number(data.readCount)),
-        finishedAt: Number(data.readCount) < (b.readYears || []).length ? null : b.finishedAt,
+        workId: data.independent ? b?.workId || uid() : "",
+        title, author: data.author.trim() || "未知作者", category: data.category.trim() || "未分类",
+        isbn: data.isbn.trim(), sources: sources.sources(), readCount: Number(data.readCount),
       };
-      const { key, ids, ...old } = b;
-      next = {
-        ...state,
-        books: [
-          ...state.books.filter((x) => !ids.includes(x.id)),
-          { ...old, ...changes, updatedAt: new Date().toISOString() },
-        ],
-      };
-    } else {
-      if (data.independent) data.workId = uid();
-      const prepared = prepareImport([data]).books[0];
-      next = {
-        demo: false,
-        books: [...(state.demo ? [] : state.books), prepared],
-      };
-    }
-    if (await persist(next)) {
-      d.close();
-      $("#book-dialog").close();
-      render();
-      toast(b ? "书目信息已更新" : "好书已靠岸，欢迎入藏。");
-    }
+      let next;
+      if (b) {
+        changes.readYears = (b.readYears || []).slice(0, changes.readCount);
+        changes.finishedAt = changes.readCount < (b.readYears || []).length ? null : b.finishedAt;
+        const {key,ids,...old} = b;
+        next = {...state,books:[...state.books.filter(x=>!ids.includes(x.id)),{...old,...changes,updatedAt:new Date().toISOString()}]};
+      } else next = {demo:false,books:[...(state.demo?[]:state.books),prepareImport([changes]).books[0]]};
+      if (await persist(next)) {
+        d.close(); $("#book-dialog").close(); render();
+        toast(b ? "书目与全部来源已更新。" : "好书已靠岸，欢迎入藏。");
+      }
+    } catch(error) { $("#form-error").textContent = error.message; }
   });
   d.showModal();
 }
@@ -583,7 +549,8 @@ function exportBackup() {
 }
 function openBackup() {
   const d = $("#form-dialog");
-  d.innerHTML = `<div class="dialog-header"><h2>备份与数据管理</h2><button class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">本机草稿自动缓存在浏览器。跨设备请保存 library.json，并在另一台设备选择「打开 JSON 书库」。修改后记得重新保存 JSON 文件。</p><div class="backup-options"><section class="backup-option"><h3>完整备份</h3><p>包含全部书目、文件来源、阅读状态、评分、完成日期和笔记。当前共 ${groups().length} 本书。</p><button class="button primary" data-action="export">${icon("download")}保存 JSON 文件</button></section><section class="backup-option"><h3>导入与恢复</h3><p>从 CSV 导入书目，或追加恢复一份完整 JSON 备份。相同来源不会重复添加。</p><button class="button" data-action="import">导入备份 / 书目</button></section><section class="backup-option"><h3>恢复默认书库</h3><p>重新载入随网站提供的完整书库，替换本机草稿。恢复前请先保存自己的 JSON 备份。</p><button class="button" data-action="load-default">恢复默认书库</button></section><section class="backup-option"><h3>清空当前书库</h3><p>将清除本浏览器中全部书目与阅读记录，不影响任何网盘文件。请先导出备份。</p><button class="button danger" data-action="clear-all">清空数据</button></section></div></div>`;
+  const datasets = Object.entries(PROJECT_TYPES).map(([kind,type])=>`<section class="backup-option"><h3>${type.label}</h3><p>${type.file} · ${projects.count(kind)} 条记录${kind==='readers'?' · 同时包含 Kindle、X3 的全部书单':''}</p><div class="backup-buttons"><button class="button" data-dataset-open="${kind}">打开 ${type.file}</button><button class="button primary" data-dataset-export="${kind}">保存 ${type.file}</button></div></section>`).join("");
+  d.innerHTML = `<div class="dialog-header"><h2>备份与数据管理</h2><button class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">在这里打开或保存各份 JSON。打开文件替换对应的本机草稿；修改后请保存 JSON，并自行同步到其他设备。</p><div class="backup-options"><section class="backup-option"><h3>主书库</h3><p>library.json · ${groups().length} 本独立书目，包含全部网盘来源、阅读记录、评分和笔记。</p><div class="backup-buttons"><button class="button" data-action="open-library">打开 library.json</button><button class="button primary" data-action="export">保存 library.json</button></div></section>${datasets}<section class="backup-option"><h3>批量追加与恢复</h3><p>从 CSV 或书库 JSON 追加导入书目；相同来源不会重复添加。</p><button class="button" data-action="import">追加导入书目</button></section><section class="backup-option"><h3>恢复默认书库</h3><p>重新载入网站默认书库，替换主书库草稿，其他清单独立保留。</p><button class="button" data-action="load-default">恢复默认书库</button></section><section class="backup-option"><h3>清空当前书库</h3><p>仅清除主书库的本机草稿，不影响网盘文件和其他清单。请先保存 JSON。</p><button class="button danger" data-action="clear-all">清空主书库</button></section></div></div>`;
   d.showModal();
 }
 function confirmDialog(title, desc, onConfirm, label = "确认") {
@@ -690,54 +657,18 @@ document.addEventListener("click", async (ev) => {
     }
     return;
   }
-  if (ds.sourceEdit !== undefined) {
-    let b = groups().find((x) => x.ids.includes(dialogBookId));
-    if (state.demo) {
-      toast("这是示例书目；导入真实书目后即可打开网盘。");
-      return;
-    }
-    if (!(await stashNotes())) return;
-    b = groups().find((x) => x.ids.includes(dialogBookId));
-    const source = b.sources[Number(ds.sourceEdit)];
-    const d = $("#form-dialog");
-    d.innerHTML = `<form id="source-form"><div class="dialog-header"><h2>添加 ${e(source.drive)} 链接</h2><button type="button" class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><label class="form-field">分享或文件链接<input name="url" type="url" required placeholder="https://…"></label><p id="form-error" class="form-error" role="alert"></p></div><div class="dialog-footer"><span></span><button class="button primary" type="submit">保存链接</button></div></form>`;
-    $("#source-form").onsubmit = async (event) => {
-      event.preventDefault();
-      const url = safeURL(new FormData(event.target).get("url"));
-      if (!url) {
-        $("#form-error").textContent = "请输入有效的 http / https 链接。";
-        return;
-      }
-      const sources = b.sources.map((s, i) =>
-        i === Number(ds.sourceEdit) ? { ...s, url } : s,
-      );
-      const { key, ids, ...base } = b;
-      if (
-        await persist({
-          ...state,
-          books: [
-            ...state.books.filter((x) => !ids.includes(x.id)),
-            { ...base, sources, updatedAt: new Date().toISOString() },
-          ],
-        })
-      ) {
-        d.close();
-        render();
-        openBook(b.id);
-        toast("网盘链接已保存。");
-      }
-    };
-    d.showModal();
-    return;
-  }
+  if (ds.datasetOpen) { projects.openFile(ds.datasetOpen); return; }
+  if (ds.datasetExport) { projects.export(ds.datasetExport); return; }
   const a = ds.action;
   if (!a) return;
   if (a === "add") openAdd();
+  else if (a === "backup") openBackup();
   else if (a === "import") {
     if ($("#form-dialog").open) $("#form-dialog").close();
     openImport();
   } else if (a === "export") exportBackup();
   else if (a === "export-current") projects.isProject(page) ? projects.export(page) : exportBackup();
+  else if (a === "open-library") $("#open-library-file").click();
   else if (a === "open-json") projects.isProject(page) ? projects.openFile(page) : $("#open-library-file").click();
   else if (a === "read-again") {
     if (!(await stashNotes())) return;
@@ -764,6 +695,15 @@ document.addEventListener("click", async (ev) => {
   } else if (a === "edit-book") {
     if (!(await stashNotes())) return;
     openAdd(groups().find((x) => x.ids.includes(dialogBookId)));
+  } else if (a === "split-book") {
+    if (!(await stashNotes())) return;
+    const collection = groups().find(x=>x.ids.includes(dialogBookId));
+    if (collection) openSplitDialog({dialog:$("#form-dialog"),collection,getBooks:()=>state.books,save:async result=>{
+      if (!(await persist({...state,books:result.books}))) return false;
+      $("#book-dialog").close(); navigate("library");
+      toast(`已拆分：新增 ${result.added} 本，向 ${result.updated} 本追加来源，原合集已移除。`);
+      return true;
+    }});
   } else if (a === "delete-book") {
     const b = groups().find((x) => x.ids.includes(dialogBookId));
     confirmDialog(
@@ -786,8 +726,8 @@ document.addEventListener("click", async (ev) => {
   }
   else if (a === "clear-all")
     confirmDialog(
-      "确认清空全部数据？",
-      "这会删除当前浏览器保存的书目、链接、笔记和阅读记录，无法撤销。网盘文件不受影响。请先导出备份。",
+      "确认清空主书库？",
+      "这会清空本机主书库的书目、链接、笔记和阅读记录。价格计划、待看清单、阅读器记录和网盘文件不受影响。请先保存 library.json。",
       async () => {
         if (!(await persist({ books: [], demo: false }))) return false;
         $("#book-dialog").close();

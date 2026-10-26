@@ -1,4 +1,4 @@
-import { uid } from "./core.js";
+import { uid,STATUSES } from "./core.js";
 
 export const PROJECT_TYPES = {
   prices: { app: "bluebooks-price-plan", file: "price-plan.json", label: "价格回收计划", cache: "price-plan" },
@@ -47,8 +47,9 @@ export function normalizeProject(kind, input) {
     const items=input.items.map(r=>{
       if(!r||!text(r.title).trim())throw new Error('阅读器记录缺少书名。');
       if(!devices.has(r.deviceId))throw new Error('请选择 Kindle 或 X3 作为阅读器。');
+      if(r.status!==undefined&&!Object.hasOwn(STATUSES,r.status))throw new Error('阅读器状态须为未读、在读或已读。');
       const id=text(r.id||uid(),100);if(ids.has(id))throw new Error('阅读器记录的编号重复。');ids.add(id);
-      return {...r,id,deviceId:r.deviceId,title:text(r.title,500).trim(),author:text(r.author,200).trim(),location:text(r.location,2000),notes:text(r.notes)};
+      return {...r,id,deviceId:r.deviceId,title:text(r.title,500).trim(),author:text(r.author,200).trim(),location:text(r.location,2000),notes:text(r.notes),status:r.status||'unread'};
     });
     return {...input,app:type.app,version:1,devices:READER_DEVICES.map(d=>({...d})),items};
   }
@@ -68,6 +69,6 @@ export function priceSummary(section) {
 export function projectRows(kind,data,{query='',section='',status='all',device='kindle'}={}) {
   const q=query.toLocaleLowerCase().trim();
   if(kind==='prices')return data.sections.filter(s=>!section||s.id===section).map(s=>({...s,rows:s.rows.filter(r=>!q||[r.title,r.notes,r.price].join(' ').toLocaleLowerCase().includes(q))}));
-  if(kind==='readers')return data.items.filter(r=>r.deviceId===device&&(!q||[r.title,r.author,r.location,r.notes].join(' ').toLocaleLowerCase().includes(q)));
+  if(kind==='readers')return data.items.filter(r=>r.deviceId===device&&(status==='all'||r.status===status)&&(!q||[r.title,r.author,r.location,r.notes].join(' ').toLocaleLowerCase().includes(q)));
   return data.items.filter(r=>(status==='all'||r.status===status)&&(!q||[r.title,r.isbn,r.source,r.location,r.notes].join(' ').toLocaleLowerCase().includes(q)));
 }

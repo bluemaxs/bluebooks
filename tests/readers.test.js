@@ -36,6 +36,18 @@ test('reader import rejects other datasets, bad devices and duplicate records',(
   assert.throws(()=>normalizeProject('readers',{...records(),items:[records().items[0],records().items[0]]}));
   assert.throws(()=>normalizeProject('readers',{...records(),devices:[{id:'kindle'},{id:'kindle'}]}));
   assert.throws(()=>normalizeProject('readers',{...records(),devices:[{id:'kindle'}]}));
+  assert.throws(()=>normalizeProject('readers',{...records(),items:[{...records().items[0],status:'broken'}]}));
+});
+test('reader statuses migrate old files and filter only the chosen device',()=>{
+  const old=normalizeProject('readers',records());assert.ok(old.items.every(r=>r.status==='unread'));
+  const data=normalizeProject('readers',{...records(),items:records().items.map((r,i)=>({...r,status:['reading','read','unread'][i]}))});
+  assert.equal(projectRows('readers',data,{device:'kindle',status:'reading'}).length,1);
+  assert.equal(projectRows('readers',data,{device:'kindle',status:'read'}).length,0);
+  assert.equal(projectRows('readers',data,{device:'x3',status:'read'}).length,1);
+  assert.equal(projectRows('readers',data,{device:'x3',status:'unread',query:'收藏夹'}).length,1);
+  assert.deepEqual(normalizeProject('readers',JSON.parse(JSON.stringify(data))),data);
+  const page=projectPage('readers',data,{device:'x3',status:'read'});
+  assert.match(page,/data-reader-status="reading"/);assert.match(page,/data-reader-status="read" aria-pressed="true"/);
 });
 test('empty device tabs remain usable and imported book text is escaped',()=>{
   const page=projectPage('readers',emptyProject('readers'),{device:'x3'});
