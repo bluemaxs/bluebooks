@@ -37,14 +37,15 @@ test('published default contains the full approved merged snapshot',async()=>{
   const input=JSON.parse(await readFile(new URL('../default-library.json',import.meta.url),'utf8'));
   const state=await loadDefaultLibrary(async()=>({ok:true,json:async()=>input}));
   const groups=groupBooks(state.books);
-  assert.equal(groups.length,8271);assert.ok(groups.every(b=>b.ids.length===1));
-  assert.equal(groups.filter(b=>b.status==='read').length,385);
-  assert.equal(groups.filter(b=>b.status==='unread').length,7886);
-  assert.equal(groups.reduce((n,b)=>n+readingCount(b),0),398);
+  assert.equal(groups.length,8405);assert.ok(groups.every(b=>b.ids.length===1));
+  assert.equal(groups.filter(b=>b.status==='read').length,391);
+  assert.equal(groups.filter(b=>b.status==='unread').length,8014);
+  assert.equal(groups.reduce((n,b)=>n+readingCount(b),0),404);
   const archives=state.books.flatMap(b=>b.sources).filter(s=>s.path.startsWith('/book/')&&['EXE','ZIP','RAR','7Z','E01','E02'].includes(s.format));
   assert.equal(archives.length,430);
   const aliyun=state.books.flatMap(b=>b.sources).filter(s=>s.drive==='阿里云盘');
-  assert.equal(aliyun.length,2277);
+  assert.equal(aliyun.length,2473);
+  assert.equal(aliyun.filter(s=>s.path.startsWith('/大合集')).length,2277);
   for(const [title,year] of [['新推理要在晚餐后',2024],['变形记',2023]]){
     const book=state.books.find(b=>b.title===title);
     assert.equal(book.status,'read');assert.equal(book.readCount,1);
@@ -52,4 +53,17 @@ test('published default contains the full approved merged snapshot',async()=>{
     assert.equal(book.sources.filter(s=>s.drive==='阿里云盘').length,3);
   }
   assert.ok(state.books.some(b=>b.title==='冥想5分钟,等于熟睡一小时'));
+  const booklist=state.books.flatMap(b=>b.sources).filter(s=>s.path.startsWith('书单条目：'));
+  assert.equal(booklist.length,218);
+  assert.equal(booklist.filter(s=>s.drive==='夸克网盘').length,22);
+  assert.equal(booklist.filter(s=>s.drive==='阿里云盘').length,196);
+  assert.ok(booklist.every(s=>s.format==='书目'&&s.url===''));
+  const newReads=['斗破苍穹','斗罗大陆','斗罗大陆2绝世唐门','邪王追妻（一世倾城）','武动乾坤','等你好久啦'];
+  for(const title of newReads){
+    const book=state.books.find(b=>b.title===title);
+    assert.equal(book.status,'read');assert.equal(book.readCount,1);
+    assert.deepEqual(book.readYears,[]);assert.equal(book.finishedAt,null);
+  }
+  assert.equal(state.books.find(b=>b.title==='大主宰').status,'unread');
+  assert.ok(!state.books.some(b=>b.title==='小说'||b.title==='帆书'));
 });
