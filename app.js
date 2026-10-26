@@ -115,6 +115,7 @@ const syncChannel =
     : null;
 const projects = new ProjectController({
   page: () => page, toast, confirm: confirmDialog, navigate, render, download,
+  books: () => groups(),
   notify: kind => syncChannel?.postMessage({dataset: kind}),
 });
 await projects.load();

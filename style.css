@@ -1861,6 +1861,12 @@ dialog::backdrop {
 .category-input-group { display:flex; gap:7px; min-width:0; }
 .category-input-group input { flex:1; min-width:0; width:0; }
 .category-input-group select { flex:0 0 100px; width:100px; }
+.reader-book-options { max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; background:var(--paper, #fff); }
+.reader-book-options[hidden] { display:none; }
+.reader-book-options button { display:block; width:100%; padding:10px 12px; text-align:left; border:0; border-bottom:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+.reader-book-options button:last-child { border-bottom:0; }
+.reader-book-options button:hover, .reader-book-options button[aria-selected="true"] { background:var(--green-soft, #edf4ef); }
+.reader-book-options span, .reader-book-options small { display:block; overflow-wrap:anywhere; }
 .source-editor-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:25px; }
 .source-editor-heading h3 { font:600 19px var(--serif); }
 .source-editor-card { border:1px solid var(--line); border-radius:7px; padding:18px; margin:0 0 18px; min-width:0; }
