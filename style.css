@@ -1858,6 +1858,9 @@ dialog::backdrop {
 .reader-file-note { font-size:12px; }
 .mobile-backup { display:none; }
 .backup-buttons { display:flex; flex-wrap:wrap; gap:9px; }
+.category-input-group { display:flex; gap:7px; min-width:0; }
+.category-input-group input { flex:1; min-width:0; width:0; }
+.category-input-group select { flex:0 0 100px; width:100px; }
 .source-editor-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:25px; }
 .source-editor-heading h3 { font:600 19px var(--serif); }
 .source-editor-card { border:1px solid var(--line); border-radius:7px; padding:18px; margin:0 0 18px; min-width:0; }
