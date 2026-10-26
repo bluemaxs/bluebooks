@@ -7,6 +7,6 @@
   "scripts": {
     "dev": "python3 -m http.server 4173 --bind 127.0.0.1",
     "test": "node --test tests/*.test.js",
-    "check": "node --check app.js && node --check core.js && node --check storage.js && node --check seed.js && node --check projects.js && node --check project-pages.js && node --check project-ui.js"
+    "check": "node --check app.js && node --check core.js && node --check storage.js && node --check seed.js && node --check projects.js && node --check project-pages.js && node --check project-ui.js && node --check default-library.js"
   }
 }

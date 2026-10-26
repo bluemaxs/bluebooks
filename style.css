@@ -758,49 +758,6 @@ main {
   height: 13px;
   font-size: 8px;
 }
-.drive-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin-top: 26px;
-}
-.drive-card {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 24px;
-}
-.drive-card > .drive-dot {
-  width: 43px;
-  height: 43px;
-  font-size: 22px;
-  border-radius: 12px;
-}
-.drive-card h3 {
-  font: 600 19px var(--serif);
-  margin: 20px 0 10px;
-}
-.drive-card p {
-  font-size: 11px;
-  color: #94a38b;
-  line-height: 1.9;
-}
-.drive-card .button {
-  margin-top: 15px;
-  width: 100%;
-}
-.drive-stat {
-  font:
-    30px Georgia,
-    serif;
-  color: #44623d;
-  margin-top: 15px;
-}
-.drive-stat small {
-  font: 10px sans-serif;
-  color: #9aa591;
-  margin-left: 6px;
-}
 .empty-state {
   text-align: center;
   padding: 65px 15px;
@@ -1254,9 +1211,6 @@ dialog::backdrop {
   }
   .tabs {
     gap: 19px;
-  }
-  .drive-cards {
-    grid-template-columns: 1fr;
   }
   .list-row {
     grid-template-columns: minmax(170px, 2fr) 1fr 75px;
@@ -1895,3 +1849,38 @@ dialog::backdrop {
 .independent-field > span { display:flex; align-items:center; gap:8px; }
 .independent-field input[type="checkbox"] { width:15px; height:15px; padding:0; accent-color:var(--green); }
 .source-empty { color:#8b9690; font-size:12px; line-height:1.8; margin:15px 0 24px; }
+
+/* Keep every navigation section reachable on short windows. */
+.sidebar {
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior-y:contain;
+  scrollbar-width:thin;
+  scrollbar-color:#c5d3c8 transparent;
+}
+.sidebar > * { flex-shrink:0; }
+.initial-loading { padding:50px 0; color:var(--muted); font-size:14px; }
+@media (max-width:680px) {
+  .sidebar { overflow:visible; }
+  #navigation { scrollbar-width:thin; padding-bottom:3px; }
+  #drive-navigation {
+    display:flex;
+    overflow-x:auto;
+    gap:5px;
+    padding:9px 0 11px;
+    margin-top:6px;
+    border-top:1px solid var(--line);
+    scrollbar-width:thin;
+  }
+  #drive-navigation .nav-item {
+    width:auto;
+    flex-shrink:0;
+    white-space:nowrap;
+    font-size:11px;
+    padding:8px 10px;
+    margin:0;
+    gap:6px;
+  }
+  #drive-navigation .nav-item.active::before { display:none; }
+  #drive-navigation .nav-item .count { font-size:9px; }
+}

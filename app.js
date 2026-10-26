@@ -16,7 +16,7 @@ import {
   uid,
 } from "./core.js";
 import { ProjectController } from "./project-ui.js";
-import { demoBooks } from "./seed.js";
+import { initialLibrary, loadDefaultLibrary } from "./default-library.js";
 import { readLibrary, writeLibrary } from "./storage.js";
 
 const paths = {
@@ -56,19 +56,25 @@ const driveClass = (d) =>
 const driveMark = (d, small = false) =>
   `<span class="drive-dot ${driveClass(d)} ${small ? "source-mark" : ""}" title="${e(d)}">${d === "百度网盘" ? "百" : d === "阿里云盘" ? "阿" : d === "夸克网盘" ? "夸" : "云"}</span>`;
 let storageBroken = false;
-let state;
+let defaultLoadError = "";
+let state, savedState;
 try {
-  const saved = await readLibrary();
-  let legacy;
-  try {
-    legacy = localStorage.getItem(STORAGE_KEY);
-  } catch {}
-  state =
-    saved || (legacy ? JSON.parse(legacy) : { books: demoBooks(), demo: true });
-  if (!state || !Array.isArray(state.books)) throw Error("invalid");
+  savedState = await readLibrary();
+  if (!savedState) {
+    let legacy;
+    try { legacy = localStorage.getItem(STORAGE_KEY); } catch {}
+    if (legacy) savedState = JSON.parse(legacy);
+  }
+  if (savedState && !Array.isArray(savedState.books)) throw Error("invalid");
+} catch {
+  savedState = null;
+  storageBroken = true;
+}
+try {
+  state = await initialLibrary(savedState);
 } catch {
   state = { books: [], demo: false };
-  storageBroken = true;
+  defaultLoadError = "默认书库暂时无法加载，请检查网络后重试，也可以打开自己的 JSON 文件。";
 }
 let page = "library",
   tab = "all",
@@ -86,7 +92,6 @@ const pageNames = {
   read: "已读书籍",
   favorites: "我的收藏",
   duplicates: "重复整理",
-  drives: "网盘管理",
   prices: "价格回收计划",
   wishlist: "待看清单",
 };
@@ -116,6 +121,7 @@ async function persist(next) {
     } catch {}
     state = next;
     storageBroken = false;
+    defaultLoadError = "";
     return true;
   } catch {
     toast("保存失败：浏览器存储不可用或已满，请先导出备份。");
@@ -164,7 +170,6 @@ function nav() {
     ["read", "read", all.reduce((n, x) => n + readingCount(x), 0)],
     ["favorites", "heart", all.filter((x) => x.favorite).length],
     ["duplicates", "copy", all.filter((x) => x.ids.length > 1).length],
-    ["drives", "cloud", null],
     ["prices", "list", projects.count("prices")],
     ["wishlist", "clock", projects.count("wishlist")],
   ];
@@ -367,28 +372,6 @@ function duplicatePage() {
         ))
   );
 }
-function drivesPage() {
-  const all = groups();
-  return (
-    heading(
-      "散落各处，尽在一处",
-      "文件保留在原网盘，书屿为你整理统一入口。",
-      "YOUR CONNECTED SHELVES",
-      false,
-    ) +
-    `<div class="section-note">${icon("cloud")}<span>当前使用书目链接管理模式，尚未连接网盘 API。支持手动添加分享链接或导入书目 CSV / JSON；不需要提供网盘密码。</span></div><div class="drive-cards">${DRIVES.slice(
-      0,
-      3,
-    )
-      .map(
-        (d) =>
-          `<article class="drive-card">${driveMark(d)}<h3>${d}</h3><p>${d === "百度网盘" ? "你的主力藏书空间，把散落的收藏整理成一座书岛。" : "让每一份收藏，都能在同一个书架被找到。"}</p><div class="drive-stat">${all.filter((x) => x.sources.some((s) => s.drive === d)).length}<small>本书已收录</small></div><p>链接目录模式 · 未连接自动同步</p><button class="button" data-drive="${e(d)}">浏览此网盘书籍 ${icon("arrow")}</button></article>`,
-      )
-      .join(
-        "",
-      )}</div><div class="section-note">${icon("folder")}<span>有大量文件？先准备包含书名、作者、网盘、格式和链接的 CSV。相同书目集中展示，重复记录可以随时归并。</span><button class="button small" data-action="import">批量导入</button></div>`
-  );
-}
 function render() {
   nav();
   const project = projects.isProject(page);
@@ -398,9 +381,10 @@ function render() {
   if (storageBroken)
     content +=
       '<div class="storage-warning">浏览器存储无法读取。导入或修改前，请检查浏览器存储权限；导出备份可保存当前数据。</div>';
+  if (defaultLoadError)
+    content += `<div class="storage-warning" role="alert">${e(defaultLoadError)} <button class="button small" data-action="load-default">重试载入默认书库</button></div>`;
   if (project) content += projects.render(page);
   else if (page === "duplicates") content += duplicatePage();
-  else if (page === "drives") content += drivesPage();
   else {
     content += heading(
       page === "read"
@@ -424,8 +408,6 @@ function render() {
     content +=
       page === "library" ? stats() : page === "read" ? readSummary() : "";
     content += controls();
-    if (state.demo)
-      content += `<div class="demo-notice"><span>当前为示例书库 · 未连接你的网盘，可打开自己的 JSON 文件。</span><button class="text-button" data-action="clear-demo">清空示例，开始我的书库</button></div>`;
     content += '<div id="results"></div>';
   }
   $("#main").innerHTML = content;
@@ -453,7 +435,7 @@ function openAdd(editBook = null) {
   const b = editBook;
   const s = b?.sources[0] || {};
   const d = $("#form-dialog");
-  d.innerHTML = `<form id="book-form"><div class="dialog-header"><h2>${b ? "编辑书目" : "让一本好书靠岸"}</h2><button type="button" class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">记录书籍信息与网盘入口，文件继续保留在原网盘。${!b && state.demo ? "添加第一本真实书籍时，将替换当前示例书库。" : ""}${b && b.sources.length > 1 ? "这里编辑首个文件来源，其他来源完整保留。" : ""}</p><div class="form-grid"><label class="form-field">书名 *<input name="title" required maxlength="300" value="${e(b?.title || "")}" placeholder="例如：山茶文具店"></label><label class="form-field">作者<input name="author" maxlength="200" value="${e(b?.author || "")}" placeholder="作者姓名，用于识别重复"></label><label class="form-field">分类<input name="category" maxlength="60" list="categories" value="${e(b?.category || "文学")}"><datalist id="categories">${["文学", "历史", "心理", "社会", "成长", "科学", "技术", "艺术", "未分类"].map((x) => `<option>${x}</option>`).join("")}</datalist></label><label class="form-field full independent-field"><span><input name="independent" type="checkbox" ${b?.workId ? "checked" : ""}> 按独立书目记录</span><small>分卷可勾选：即使 ISBN 或合集文件相同，也保留为不同书目。</small></label><label class="form-field">阅读次数<input name="readCount" type="number" min="${b?.status === "read" ? 1 : 0}" max="100000" step="1" required value="${b ? readingCount(b) : 0}"><small>多次阅读可累加；未知历史年份无需补填。</small></label><label class="form-field">ISBN<input name="isbn" maxlength="30" value="${e(b?.isbn || "")}" placeholder="选填，优先识别相同版本"></label><label class="form-field">网盘<select name="drive">${DRIVES.map((x) => `<option ${s.drive === x ? "selected" : ""}>${x}</option>`).join("")}</select></label><label class="form-field">文件格式<select name="format">${[...new Set(["EPUB", "PDF", "MOBI", "AZW3", "TXT", s.format].filter(Boolean))].map((x) => `<option ${s.format === x ? "selected" : ""}>${e(x)}</option>`).join("")}</select></label><label class="form-field full">网盘链接<input name="url" type="url" value="${e(s.url || "")}" placeholder="https://pan.baidu.com/s/…"><small>可填写带提取码的完整分享链接；仅允许 http / https。</small></label><label class="form-field full">文件路径（选填）<input name="path" maxlength="2000" value="${e(s.path || "")}" placeholder="/电子书/文学/山茶文具店.epub"></label></div><div id="form-error" class="form-error" role="alert"></div></div><div class="dialog-footer"><span></span><button class="button primary" type="submit">${b ? "保存修改" : "添加到书库"}</button></div></form>`;
+  d.innerHTML = `<form id="book-form"><div class="dialog-header"><h2>${b ? "编辑书目" : "让一本好书靠岸"}</h2><button type="button" class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">记录书籍信息与网盘入口，文件继续保留在原网盘。${b && b.sources.length > 1 ? "这里编辑首个文件来源，其他来源完整保留。" : ""}</p><div class="form-grid"><label class="form-field">书名 *<input name="title" required maxlength="300" value="${e(b?.title || "")}" placeholder="例如：山茶文具店"></label><label class="form-field">作者<input name="author" maxlength="200" value="${e(b?.author || "")}" placeholder="作者姓名，用于识别重复"></label><label class="form-field">分类<input name="category" maxlength="60" list="categories" value="${e(b?.category || "文学")}"><datalist id="categories">${["文学", "历史", "心理", "社会", "成长", "科学", "技术", "艺术", "未分类"].map((x) => `<option>${x}</option>`).join("")}</datalist></label><label class="form-field full independent-field"><span><input name="independent" type="checkbox" ${b?.workId ? "checked" : ""}> 按独立书目记录</span><small>分卷可勾选：即使 ISBN 或合集文件相同，也保留为不同书目。</small></label><label class="form-field">阅读次数<input name="readCount" type="number" min="${b?.status === "read" ? 1 : 0}" max="100000" step="1" required value="${b ? readingCount(b) : 0}"><small>多次阅读可累加；未知历史年份无需补填。</small></label><label class="form-field">ISBN<input name="isbn" maxlength="30" value="${e(b?.isbn || "")}" placeholder="选填，优先识别相同版本"></label><label class="form-field">网盘<select name="drive">${DRIVES.map((x) => `<option ${s.drive === x ? "selected" : ""}>${x}</option>`).join("")}</select></label><label class="form-field">文件格式<select name="format">${[...new Set(["EPUB", "PDF", "MOBI", "AZW3", "TXT", s.format].filter(Boolean))].map((x) => `<option ${s.format === x ? "selected" : ""}>${e(x)}</option>`).join("")}</select></label><label class="form-field full">网盘链接<input name="url" type="url" value="${e(s.url || "")}" placeholder="https://pan.baidu.com/s/…"><small>可填写带提取码的完整分享链接；仅允许 http / https。</small></label><label class="form-field full">文件路径（选填）<input name="path" maxlength="2000" value="${e(s.path || "")}" placeholder="/电子书/文学/山茶文具店.epub"></label></div><div id="form-error" class="form-error" role="alert"></div></div><div class="dialog-footer"><span></span><button class="button primary" type="submit">${b ? "保存修改" : "添加到书库"}</button></div></form>`;
   $("#book-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const data = Object.fromEntries(new FormData(ev.target));
@@ -585,7 +567,7 @@ function exportBackup() {
 }
 function openBackup() {
   const d = $("#form-dialog");
-  d.innerHTML = `<div class="dialog-header"><h2>备份与数据管理</h2><button class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">本机草稿自动缓存在浏览器。跨设备请保存 library.json，并在另一台设备选择「打开 JSON 书库」。修改后记得重新保存 JSON 文件。</p><div class="backup-options"><section class="backup-option"><h3>完整备份</h3><p>包含全部书目、文件来源、阅读状态、评分、完成日期和笔记。当前共 ${groups().length} 本书。</p><button class="button primary" data-action="export">${icon("download")}保存 JSON 文件</button></section><section class="backup-option"><h3>导入与恢复</h3><p>从 CSV 导入书目，或追加恢复一份完整 JSON 备份。相同来源不会重复添加。</p><button class="button" data-action="import">导入备份 / 书目</button></section><section class="backup-option"><h3>清空当前书库</h3><p>将清除本浏览器中全部书目与阅读记录，不影响任何网盘文件。请先导出备份。</p><button class="button danger" data-action="clear-all">清空数据</button>${!state.books.length ? '<button class="button" data-action="load-demo" style="margin-left:8px">载入示例</button>' : ""}</section></div></div>`;
+  d.innerHTML = `<div class="dialog-header"><h2>备份与数据管理</h2><button class="icon-button" data-close="form-dialog" aria-label="关闭">${icon("close")}</button></div><div class="dialog-body"><p class="form-intro">本机草稿自动缓存在浏览器。跨设备请保存 library.json，并在另一台设备选择「打开 JSON 书库」。修改后记得重新保存 JSON 文件。</p><div class="backup-options"><section class="backup-option"><h3>完整备份</h3><p>包含全部书目、文件来源、阅读状态、评分、完成日期和笔记。当前共 ${groups().length} 本书。</p><button class="button primary" data-action="export">${icon("download")}保存 JSON 文件</button></section><section class="backup-option"><h3>导入与恢复</h3><p>从 CSV 导入书目，或追加恢复一份完整 JSON 备份。相同来源不会重复添加。</p><button class="button" data-action="import">导入备份 / 书目</button></section><section class="backup-option"><h3>恢复默认书库</h3><p>重新载入随网站提供的完整书库，替换本机草稿。恢复前请先保存自己的 JSON 备份。</p><button class="button" data-action="load-default">恢复默认书库</button></section><section class="backup-option"><h3>清空当前书库</h3><p>将清除本浏览器中全部书目与阅读记录，不影响任何网盘文件。请先导出备份。</p><button class="button danger" data-action="clear-all">清空数据</button></section></div></div>`;
   d.showModal();
 }
 function confirmDialog(title, desc, onConfirm, label = "确认") {
@@ -778,17 +760,7 @@ document.addEventListener("click", async (ev) => {
       },
       "移出书库",
     );
-  } else if (a === "clear-demo")
-    confirmDialog(
-      "开启你自己的书库",
-      "将移除全部示例书目。你可以随后添加书籍或导入真实书目。",
-      async () => {
-        if (!(await persist({ books: [], demo: false }))) return false;
-        render();
-        toast("书架已准备好，等你的好书靠岸。");
-      },
-      "清空示例",
-    );
+  }
   else if (a === "clear-all")
     confirmDialog(
       "确认清空全部数据？",
@@ -801,11 +773,30 @@ document.addEventListener("click", async (ev) => {
       },
       "确认清空",
     );
-  else if (a === "load-demo") {
-    if (await persist({ books: demoBooks(), demo: true })) {
-      $("#form-dialog").close();
-      navigate("library");
-    }
+  else if (a === "load-default") {
+    confirmDialog(
+      "载入默认书库？",
+      "将使用网站自带书库替换本机草稿。请先保存你在本机做过的修改；价格计划和待看清单仍独立保留。",
+      async () => {
+        const button = $("#confirm-action");
+        button.disabled = true;
+        button.textContent = "正在载入…";
+        try {
+          const next = await loadDefaultLibrary();
+          if (!(await persist(next))) return false;
+          $("#book-dialog").close();
+          navigate("library");
+          toast("默认书库已载入。");
+        } catch {
+          toast("默认书库加载失败，请检查网络后重试。");
+          return false;
+        } finally {
+          button.disabled = false;
+          button.textContent = "载入默认书库";
+        }
+      },
+      "载入默认书库",
+    );
   } else if (a === "merge-all") {
     const dupes = groups().filter((x) => x.ids.length > 1);
     confirmDialog(
@@ -885,8 +876,10 @@ const initial = location.hash.slice(1).split("?");
 if (pageNames[initial[0]]) {
   page = initial[0];
   drive = new URLSearchParams(initial[1]).get("drive") || "";
+} else if (initial[0] === "drives") {
+  history.replaceState(null, "", "#library");
 }
-if (!storageBroken) await persist(state);
+if (!storageBroken && !defaultLoadError) await persist(state);
 render();
 
 $("#open-library-file").addEventListener("change", async (event) => {

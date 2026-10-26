@@ -2,7 +2,7 @@
 node_modules/
 *.zip
 .openai/
-# Private library files and ebook files never belong in the public source repository.
+# Personal exports and ebook files are ignored. default-library.json is the explicitly published snapshot.
 library.json
 library-*.json
 *backup*.json
