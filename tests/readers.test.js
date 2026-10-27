@@ -57,7 +57,9 @@ test('empty device tabs remain usable and imported book text is escaped',()=>{
   const data=normalizeProject('readers',{...records(),items:[{id:'unsafe',deviceId:'kindle',title:'<script>alert(1)</script>',author:'<img>',location:'<svg>',notes:'"quoted"'}]});
   const html=projectResults('readers',data,{device:'kindle'}).html;
   assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));
-  assert.ok(html.includes('&lt;svg&gt;'));
+  assert.ok(html.includes('&lt;img&gt;'));
+  assert.ok(!html.includes('data-label="存放位置"'));
+  assert.equal(data.items[0].location,'<svg>');
   assert.equal(projectResults('readers',data,{device:'x3'}).count,0);
 });
 test('year selection counts only that year while retaining rereads and undated history',()=>{

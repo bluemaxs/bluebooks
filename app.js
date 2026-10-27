@@ -99,7 +99,7 @@ const pageNames = {
   duplicates: "重复整理",
   prices: "价格回收计划",
   wishlist: "待看清单",
-  readers: "阅读器内容记录",
+  readers: "读书破万卷",
 };
 let cachedBooks, cachedGroups;
 const groups = () => {
@@ -367,7 +367,7 @@ function readSummary() {
   const unknown = all.reduce((n,b) => n + readingCountForSelection(b,"unknown"),0);
   const selections = [["", "全部年份", totalCount], ...years.map(y => [String(y), String(y), all.reduce((n,b) => n + readingCountForYear(b,y),0)]), ...(unknown ? [["unknown", "未记录年份", unknown]] : [])];
   const annualSummary = `<div class="reading-years" role="group" aria-label="按阅读年份筛选">${selections.map(([value,label,count]) => `<button type="button" class="reading-year ${readYear === value ? "active" : ""}" data-read-year="${value}" aria-pressed="${readYear === value}"><strong>${label}</strong> ${count} 册次</button>`).join("")}</div>`;
-  return `<div class="read-summary"><div><strong>${yearCount}</strong><p>${year} 年已记录 / 次</p></div><div><strong>${totalCount}</strong><p>已读总数 / 册次（含重读）</p></div><div><strong>${notes}</strong><p>留下阅读笔记 / 本</p></div><div class="read-quote">「读过的书，都藏在你的气质里。」</div></div>${annualSummary}`;
+  return `<div class="read-summary"><div><strong>${yearCount}</strong><p>${year} 年已记录 / 次</p></div><div><strong>${totalCount}</strong><p>已读总数 / 册次（含重读）</p></div><div><strong>${notes}</strong><p>留下阅读笔记 / 本</p></div><div class="read-quote">腹有诗书气自华。</div></div>${annualSummary}`;
 }
 function duplicatePage() {
   const dupes = groups().filter((x) => x.ids.length > 1);

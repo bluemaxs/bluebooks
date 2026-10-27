@@ -3,7 +3,7 @@ import { uid,STATUSES } from "./core.js";
 export const PROJECT_TYPES = {
   prices: { app: "bluebooks-price-plan", file: "price-plan.json", label: "价格回收计划", cache: "price-plan" },
   wishlist: { app: "bluebooks-wishlist", file: "wishlist.json", label: "待看清单", cache: "wishlist" },
-  readers: { app: "bluebooks-reader-contents", file: "reader-contents.json", label: "阅读器内容记录", shortLabel: "阅读器", cache: "reader-contents" },
+  readers: { app: "bluebooks-reader-contents", file: "reader-contents.json", label: "读书破万卷", shortLabel: "阅读器", cache: "reader-contents" },
 };
 export const READER_DEVICES = [{id:'kindle',name:'Kindle'},{id:'x3',name:'X3'}];
 export const money = value => value === null || value === undefined ? "未计入" : `¥${Number(value).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
