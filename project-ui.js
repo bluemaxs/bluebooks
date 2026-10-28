@@ -1,6 +1,6 @@
 import {escapeHTML as e,uid} from './core.js';
 import {readDataset,writeDataset} from './storage.js';
-import {PROJECT_TYPES,READER_DEVICES,emptyProject,normalizeProject} from './projects.js';
+import {PROJECT_TYPES,addReaderDevice,emptyProject,normalizeProject} from './projects.js';
 import {projectPage,projectResults} from './project-pages.js';
 import {mountReaderBookPicker} from './reader-book-picker.js';
 
@@ -37,6 +37,7 @@ export class ProjectController {
       const target=event.target.closest('button');if(!target)return;
       const kind=this.callbacks.page();if(!this.isProject(kind))return;
       if(kind==='readers'&&target.dataset.readerDevice)this.selectDevice(target.dataset.readerDevice);
+      if(kind==='readers'&&target.dataset.action==='reader-device-add')this.addDevice();
       if(kind==='readers'&&target.dataset.readerStatus){
         this.ui.status=target.dataset.readerStatus;this.callbacks.render();
         document.querySelector(`[data-reader-status="${this.ui.status}"]`)?.focus();
@@ -53,25 +54,30 @@ export class ProjectController {
       if(this.callbacks.page()!=='readers'||!event.target.matches('[data-reader-device]'))return;
       if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
       event.preventDefault();
-      const current=READER_DEVICES.findIndex(d=>d.id===this.ui.device);
-      const index=event.key==='Home'?0:event.key==='End'?READER_DEVICES.length-1:(current+(event.key==='ArrowRight'?1:-1)+READER_DEVICES.length)%READER_DEVICES.length;
-      this.selectDevice(READER_DEVICES[index].id);
+      const devices=this.data.readers.devices;
+      const current=devices.findIndex(d=>d.id===this.ui.device);
+      const index=event.key==='Home'?0:event.key==='End'?devices.length-1:(current+(event.key==='ArrowRight'?1:-1)+devices.length)%devices.length;
+      this.selectDevice(devices[index].id);
     });
   }
   isProject(kind){return Object.hasOwn(PROJECT_TYPES,kind);}
   count(kind){return kind==='prices'?this.data.prices.sections.reduce((n,s)=>n+s.rows.length,0):this.data[kind].items.length;}
   resetFilters(){this.ui={query:'',section:'',status:'all',device:'kindle'};}
   selectDevice(device){
-    if(!READER_DEVICES.some(d=>d.id===device))return;
+    if(!this.data.readers.devices.some(d=>d.id===device))return;
     this.ui.device=device;this.ui.query='';this.callbacks.render();
-    document.querySelector(`#reader-tab-${device}`)?.focus();
+    const tab=document.getElementById(`reader-tab-${device}`);
+    tab?.focus();tab?.scrollIntoView({block:'nearest',inline:'nearest'});
   }
-  render(kind){return projectPage(kind,this.data[kind],this.ui);}
+  render(kind){
+    if(kind==='readers'&&!this.data.readers.devices.some(d=>d.id===this.ui.device))this.ui.device=this.data.readers.devices[0].id;
+    return projectPage(kind,this.data[kind],this.ui);
+  }
   renderResults(){
     const kind=this.callbacks.page();if(!this.isProject(kind)||!document.querySelector('#project-results'))return;
     const result=projectResults(kind,this.data[kind],this.ui);
     document.querySelector('#project-results').innerHTML=result.html;
-    document.querySelector('#project-result-count').textContent=`${kind==='readers'?READER_DEVICES.find(d=>d.id===this.ui.device).name+' · ':''}${result.count} 条记录`;
+    document.querySelector('#project-result-count').textContent=`${kind==='readers'?this.data.readers.devices.find(d=>d.id===this.ui.device).name+' · ':''}${result.count} 条记录`;
   }
   openFile(kind){document.querySelector(`#open-${kind}-file`).click();}
   export(kind){
@@ -85,6 +91,23 @@ export class ProjectController {
       const clean=normalizeProject(kind,next);await writeDataset(PROJECT_TYPES[kind].cache,clean);this.data[kind]=clean;this.callbacks.notify(kind);return true;
     }catch(error){this.callbacks.toast('保存失败：'+error.message);return false;}
   }
+  addDevice(){
+    const dialog=document.querySelector('#form-dialog');
+    dialog.innerHTML=`<form id="reader-device-form"><div class="dialog-header"><h2>添加阅读器</h2><button type="button" class="icon-button" data-close="form-dialog" aria-label="关闭">×</button></div><div class="dialog-body"><p class="form-intro">给设备起个名字，单独整理它的书单。</p><label class="form-field">设备名称 *<input name="deviceName" required maxlength="80" placeholder="例如：Kobo、文石、我的 Kindle"></label><div id="reader-device-error" class="form-error" role="alert"></div></div><div class="dialog-footer"><span></span><button class="button primary" type="submit">添加设备</button></div></form>`;
+    const form=dialog.querySelector('form');
+    form.onsubmit=async event=>{
+      event.preventDefault();const button=form.querySelector('[type="submit"]');button.disabled=true;
+      try{
+        const next=addReaderDevice(this.data.readers,new FormData(form).get('deviceName'));
+        if(await this.save('readers',next)){
+          this.ui.status='all';dialog.close();this.selectDevice(next.devices.at(-1).id);
+          this.callbacks.toast('设备已添加，记得保存 reader-contents.json。');
+        }
+      }catch(error){dialog.querySelector('#reader-device-error').textContent=error.message;}
+      finally{button.disabled=false;}
+    };
+    dialog.showModal();form.elements.deviceName.focus();
+  }
   edit(kind,id){
     const isPrice=kind==='prices',isReader=kind==='readers',data=this.data[kind];let record,section;
     if(isPrice){section=data.sections.find(s=>s.rows.some(r=>r.id===id));record=section?.rows.find(r=>r.id===id);}else record=data.items.find(r=>r.id===id);
@@ -96,7 +119,7 @@ export class ProjectController {
       fields=data.sections.length?`<label class="form-field full">设备分组<select name="section">${data.sections.map(s=>`<option value="${e(s.id)}" ${section?.id===s.id?'selected':''}>${e(s.name)}</option>`).join('')}</select></label>`:`${input('deviceName','设备名称 *','','required maxlength="200"')}${input('cost','设备成本 *','','type="number" min="0" step="0.01" required')}${input('milestone','两倍回收目标 *','','type="number" min="0" step="0.01" required')}`;
       fields+=input('title','书名 *',record?.title,'required maxlength="500"')+`<label class="form-field full">价格（元，留空不计入）<input name="price" type="number" min="0" step="0.01" value="${record?.price===null||record?.price===undefined?'':e(record.price)}"></label>`;
     }else if(isReader){
-      fields=`<label class="form-field">阅读器<select name="deviceId">${READER_DEVICES.map(d=>`<option value="${d.id}" ${(record?.deviceId||this.ui.device)===d.id?'selected':''}>${d.name}</option>`).join('')}</select></label><label class="form-field">阅读状态<select name="status">${Object.entries({unread:'未读',reading:'在读',read:'已读'}).map(([value,label])=>`<option value="${value}" ${(record?.status||'unread')===value?'selected':''}>${label}</option>`).join('')}</select></label><div class="form-field full reader-book-picker"><label for="reader-book-title">书名 *</label><input id="reader-book-title" name="title" value="${e(record?.title||'')}" required maxlength="500" placeholder="搜索书库中的书名或作者，也可手动输入" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="reader-book-options" aria-describedby="reader-book-hint"><div id="reader-book-options" class="reader-book-options" role="listbox" aria-label="书库搜索结果" hidden></div><small id="reader-book-hint" role="status">输入书名或作者搜索全部书籍，也可直接填写新书名。</small></div>`+input('author','作者（选填）',record?.author,'maxlength="200"')+`<label class="form-field full">存放位置（选填）<input name="location" maxlength="2000" value="${e(record?.location||'')}" placeholder="例如：documents/文学，或设备里的收藏夹名称"></label>`;
+      fields=`<label class="form-field">阅读器<select name="deviceId">${data.devices.map(d=>`<option value="${e(d.id)}" ${(record?.deviceId||this.ui.device)===d.id?'selected':''}>${e(d.name)}</option>`).join('')}</select></label><label class="form-field">阅读状态<select name="status">${Object.entries({unread:'未读',reading:'在读',read:'已读'}).map(([value,label])=>`<option value="${value}" ${(record?.status||'unread')===value?'selected':''}>${label}</option>`).join('')}</select></label><div class="form-field full reader-book-picker"><label for="reader-book-title">书名 *</label><input id="reader-book-title" name="title" value="${e(record?.title||'')}" required maxlength="500" placeholder="搜索书库中的书名或作者，也可手动输入" role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="reader-book-options" aria-describedby="reader-book-hint"><div id="reader-book-options" class="reader-book-options" role="listbox" aria-label="书库搜索结果" hidden></div><small id="reader-book-hint" role="status">输入书名或作者搜索全部书籍，也可直接填写新书名。</small></div>`+input('author','作者（选填）',record?.author,'maxlength="200"')+`<label class="form-field full">存放位置（选填）<input name="location" maxlength="2000" value="${e(record?.location||'')}" placeholder="例如：documents/文学，或设备里的收藏夹名称"></label>`;
     }else{
       fields=input('title','书名 *',record?.title,'required maxlength="500"')+input('isbn','ISBN',record?.isbn,'maxlength="50"')+`<label class="form-field">状态<select name="status"><option value="unread" ${record?.status!=='read'?'selected':''}>待看</option><option value="read" ${record?.status==='read'?'selected':''}>已读</option></select></label><label class="form-field full">来源<textarea name="source" class="notes-field" style="min-height:60px">${e(record?.source||'')}</textarea></label><label class="form-field full">资源位置<textarea name="location" class="notes-field" style="min-height:60px">${e(record?.location||'')}</textarea></label>`;
     }

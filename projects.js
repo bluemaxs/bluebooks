@@ -41,17 +41,28 @@ export function normalizeProject(kind, input) {
   }
   if(kind==='readers') {
     if(!Array.isArray(input.items)||input.items.length>100000)throw new Error('阅读器书单需要 items 数组，最多 100,000 条。');
-    const devices=new Set(READER_DEVICES.map(d=>d.id));
-    if(input.devices!==undefined && (!Array.isArray(input.devices)||input.devices.length!==devices.size||new Set(input.devices.map(d=>d?.id)).size!==devices.size||input.devices.some(d=>!devices.has(d?.id))))throw new Error('阅读器分组须包含 Kindle 和 X3，不能缺少或重复。');
+    const rawDevices=input.devices===undefined?READER_DEVICES:input.devices;
+    if(!Array.isArray(rawDevices)||rawDevices.length<2||rawDevices.length>100)throw new Error('阅读器设备须包含 Kindle 和 X3，最多支持 100 台设备。');
+    const deviceIds=new Set(),deviceNames=new Set();
+    const devices=rawDevices.map(device=>{
+      if(!device||typeof device.id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(device.id))throw new Error('阅读器设备编号无效。');
+      const name=typeof device.name==='string'?device.name.trim():'';
+      if(!name||name.length>80)throw new Error('阅读器名称须为 1–80 个字。');
+      const key=name.normalize('NFKC').toLocaleLowerCase();
+      if(deviceIds.has(device.id)||deviceNames.has(key))throw new Error('阅读器编号或名称重复，请使用不同的设备名称。');
+      deviceIds.add(device.id);deviceNames.add(key);
+      return {...device,id:device.id,name};
+    });
+    if(READER_DEVICES.some(device=>!deviceIds.has(device.id)))throw new Error('阅读器分组须保留 Kindle 和 X3。');
     const ids=new Set();
     const items=input.items.map(r=>{
       if(!r||!text(r.title).trim())throw new Error('阅读器记录缺少书名。');
-      if(!devices.has(r.deviceId))throw new Error('请选择 Kindle 或 X3 作为阅读器。');
+      if(!deviceIds.has(r.deviceId))throw new Error('书目所属阅读器不存在，请先添加对应设备。');
       if(r.status!==undefined&&!Object.hasOwn(STATUSES,r.status))throw new Error('阅读器状态须为未读、在读或已读。');
       const id=text(r.id||uid(),100);if(ids.has(id))throw new Error('阅读器记录的编号重复。');ids.add(id);
       return {...r,id,deviceId:r.deviceId,title:text(r.title,500).trim(),author:text(r.author,200).trim(),location:text(r.location,2000),notes:text(r.notes),status:r.status||'unread'};
     });
-    return {...input,app:type.app,version:1,devices:READER_DEVICES.map(d=>({...d})),items};
+    return {...input,app:type.app,version:1,devices,items};
   }
   if(!Array.isArray(input.items)||input.items.length>100000)throw new Error("待看清单需要 items 数组，最多 100,000 条。");
   const ids=new Set();
@@ -60,6 +71,9 @@ export function normalizeProject(kind, input) {
     const id=text(r.id||uid(),100);if(ids.has(id))throw new Error("待看记录的编号重复。");ids.add(id);
     return {...r,id,title:text(r.title,500).trim(),isbn:text(r.isbn,50),source:text(r.source),location:text(r.location),notes:text(r.notes),status:r.status==='read'?'read':'unread',originalFill:text(r.originalFill,50)};
   })};
+}
+export function addReaderDevice(data,name) {
+  return normalizeProject('readers',{...data,devices:[...data.devices,{id:uid(),name}]});
 }
 export function priceSummary(section) {
   const totalCents=section.rows.reduce((sum,r)=>sum+(r.price===null?0:Math.round(r.price*100)),0);

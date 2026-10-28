@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {emptyProject,normalizeProject,projectRows} from '../projects.js';
+import {addReaderDevice,emptyProject,normalizeProject,projectRows} from '../projects.js';
 import {projectPage,projectResults} from '../project-pages.js';
 import {restoreLibrary,readingCountForSelection} from '../core.js';
 
@@ -48,6 +48,39 @@ test('reader statuses migrate old files and filter only the chosen device',()=>{
   assert.deepEqual(normalizeProject('readers',JSON.parse(JSON.stringify(data))),data);
   const page=projectPage('readers',data,{device:'x3',status:'read'});
   assert.match(page,/data-reader-status="reading"/);assert.match(page,/data-reader-status="read" aria-pressed="true"/);
+});
+test('custom devices and their separate book records survive a shared JSON round trip',()=>{
+  const original=normalizeProject('readers',records());
+  const added=addReaderDevice(original,'  Kobo  ');
+  assert.equal(original.devices.length,2);
+  assert.deepEqual(added.items,original.items);
+  const device=added.devices.at(-1);assert.equal(device.name,'Kobo');
+  const data=normalizeProject('readers',{...added,items:[...added.items,{id:'c1',deviceId:device.id,title:'同一本书',author:'作者甲',status:'reading',notes:'新设备版本'}]});
+  const restored=normalizeProject('readers',JSON.parse(JSON.stringify(data)));
+  assert.deepEqual(restored,data);
+  assert.equal(projectRows('readers',restored,{device:device.id,status:'reading'}).length,1);
+  assert.equal(projectRows('readers',restored,{device:'kindle'}).length,1);
+  assert.equal(projectRows('readers',restored,{device:'x3'}).length,2);
+  assert.match(projectPage('readers',restored,{device:device.id}),new RegExp(`data-reader-device="${device.id}"`));
+  assert.match(projectResults('readers',added,{device:device.id}).html,/Kobo 里存了哪些书/);
+});
+test('device validation rejects duplicate names and IDs, unsafe IDs and orphaned books',()=>{
+  const data=emptyProject('readers');
+  for(const name of ['', '   ', ' kindle ', 'Ｋｉｎｄｌｅ', 'X3', 'a'.repeat(81)])assert.throws(()=>addReaderDevice(data,name));
+  for(const device of [{id:'kindle',name:'另一台'}, {id:'bad"id',name:'Kobo'}, {id:'ok',name:''}]){
+    assert.throws(()=>normalizeProject('readers',{...data,devices:[...data.devices,device]}));
+  }
+  const added=addReaderDevice(data,'Kobo');
+  assert.throws(()=>normalizeProject('readers',{...data,items:[{id:'orphan',deviceId:added.devices.at(-1).id,title:'失去设备的记录'}]}));
+  const named=addReaderDevice(data,'<img src=x onerror=alert(1)>');
+  const page=projectPage('readers',named,{});
+  assert.ok(page.includes('&lt;img'));assert.ok(!page.includes('<img'));
+});
+test('legacy reader files without devices still load the two original devices',()=>{
+  const legacy=records();delete legacy.devices;
+  const restored=normalizeProject('readers',legacy);
+  assert.deepEqual(restored.devices,emptyProject('readers').devices);
+  assert.equal(restored.items.length,legacy.items.length);
 });
 test('empty device tabs remain usable and imported book text is escaped',()=>{
   const page=projectPage('readers',emptyProject('readers'),{device:'x3'});
